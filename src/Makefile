@@ -7,7 +7,7 @@ endif
 CFL=$(CPPFLAGS) $(CFLAGS) $(CISA) -Wall -Wshadow -Wcast-align -Wredundant-decls -Wbad-function-cast -Wcast-qual -Wwrite-strings -Waggregate-return -Wstrict-prototypes -Wmissing-prototypes -D_FILE_OFFSET_BITS=64 -DVERSION=$(VERSION)
 
 PACKAGE=cpuid
-VERSION=20151017
+VERSION=20170122
 RELEASE=1
 
 PROG=$(PACKAGE)
@@ -26,16 +26,17 @@ DEBUG_RPMS=$(i386_DEBUG_RPM) $(x86_64_DEBUG_RPM)
 
 SRCS=cpuid.c
 
-OTHER_SRCS=Makefile $(PROG).man $(PACKAGE).proto.spec $(PACKAGE).spec \
+OTHER_SRCS=Makefile $(PROG).man cpuinfo2cpuid \
+           $(PACKAGE).proto.spec $(PACKAGE).spec \
            ChangeLog FUTURE LICENSE
-OTHER_BINS=$(PROG).man
+OTHER_BINS=$(PROG).man cpuinfo2cpuid.man
 
 REL_DIR=../$(shell date +%Y-%m-%d)
 WEB_DIR=/toad2/apps.mine/www/www/$(PROG)
 
 BUILDROOT=
 
-default: $(PROG) $(PROG).man.gz
+default: $(PROG) $(PROG).man.gz cpuinfo2cpuid cpuinfo2cpuid.man.gz
 
 $(PROG): cpuid.c Makefile
 	$(CC) $(CFL) $(LDFLAGS) -o $@ cpuid.c
@@ -43,16 +44,29 @@ $(PROG): cpuid.c Makefile
 $(PROG).man.gz: $(PROG).man
 	gzip < $< > $@
 
-install: $(PROG) $(PROG).man.gz
-	install -D -s -m 755 $(PROG)        $(BUILDROOT)/usr/bin/$(PROG)
-	install -D    -m 444 $(PROG).man.gz $(BUILDROOT)/usr/share/man/man1/$(PROG).1.gz
+cpuinfo2cpuid.man: cpuinfo2cpuid Makefile
+	pod2man -r "$(VERSION)" -c "" $< > $@
+
+cpuinfo2cpuid.man.gz: cpuinfo2cpuid.man
+	gzip < $< > $@
+
+install: $(PROG) $(PROG).man.gz cpuinfo2cpuid cpuinfo2cpuid.man.gz
+	install -D -s -m 755 $(PROG)              $(BUILDROOT)/usr/bin/$(PROG)
+	install -D    -m 444 $(PROG).man.gz       $(BUILDROOT)/usr/share/man/man1/$(PROG).1.gz
+	install -D    -m 755 cpuinfo2cpuid        $(BUILDROOT)/usr/bin/cpuinfo2cpuid
+	install -D    -m 444 cpuinfo2cpuid.man.gz $(BUILDROOT)/usr/share/man/man1/cpuinfo2cpuid.1.gz
 
 clean:
 	rm -f $(PROG) $(PROG).i386 $(PROG).x86_64
-	rm -f $(PACKAGE).spec $(PROG).man.gz
+	rm -f $(PROG).man.gz
+	rm -f cpuinfo2cpuid.man cpuinfo2cpuid.man.gz
+	rm -f $(PACKAGE).spec
 	rm -f $(TARS)
 	rm -f $(RPMS)
 	rm -f $(DEBUG_RPMS)
+	rm -f $(PACKAGE)-*.src.tar.gz $(PACKAGE)-*.i386.tar.gz $(PACKAGE)-*.x86_64.tar.gz
+	rm -f $(PACKAGE)-*.src.rpm $(PACKAGE)-*.i386.rpm $(PACKAGE)-*.x86_64.rpm
+	rm -f $(PACKAGE)-debuginfo-*.i386.rpm $(PACKAGE)-debuginfo-*.x86_64.rpm
 
 # Todd's Development rules
 

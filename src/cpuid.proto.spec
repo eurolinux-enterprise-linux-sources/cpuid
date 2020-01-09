@@ -28,4 +28,6 @@ instruction, and also determines the exact model of CPU(s).
 %defattr(-,root,root)
 %{_bindir}/cpuid
 %{_mandir}/man1/cpuid.1.gz
+%{_bindir}/cpuinfo2cpuid
+%{_mandir}/man1/cpuinfo2cpuid.1.gz
 %doc ChangeLog FUTURE LICENSE

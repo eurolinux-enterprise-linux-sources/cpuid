@@ -1,7 +1,7 @@
 .\"
-.\" $Id: cpuid.man,v 20151017 2015/10/17 14:04:27 todd $
+.\" $Id: cpuid.man,v 20170122 2017/01/22 13:55:29 todd $
 .\"
-.TH CPUID 1 "17 Oct 2015" "20151017"
+.TH CPUID 1 "22 Jan 2017" "20170122"
 .SH NAME 
 cpuid \- Dump CPUID information for each CPU
 .SH SYNOPSIS
@@ -79,7 +79,7 @@ identical.
 .TP 8
 .I -f \fIFILE\fR, --file=\fIFILE\fR
 Read raw hex information from FILE instead of from executions of the cpuid 
-instruction.
+instruction.  If the filename is '-', instead read from standard input.
 .TP 8
 .I -h, -H, --help
 Display help information.
@@ -366,6 +366,14 @@ Specification Update
 .br
 326774: Intel Xeon Processor E3-1200 v2 Product Family Specification Update
 .br
+327335: Intel Xeon and Intel Core Processors For Communications Infrastructure
+Specification Update
+.br
+328105: Intel Atom Processor Z2760 Specification Update
+.br
+328198: Intel Atom Processor S1200 Product Family for Microserver
+Specification Update
+.br
 328205: Intel Xeon Phi Coprocessor x100 Product Family Specification Update
 .br
 328899: Desktop 4th Generation Intel Core Processor Family Specification Update
@@ -374,11 +382,21 @@ Specification Update
 .br
 328908: Intel Xeon Processor E3-1200 v3 Product Family Specification Update
 .br
+329376: Intel Xeon E3-1125C v2, E3-1105C v2, Intel Core 3115C and
+Intel Pentium Processor B925C Specification Update
+.br
 329460: Intel Atom Processor C2000 Product Family Specification Update
+.br
+329597: Intel Xeon Processor E7 v2 Product Family Specification Update
+.br
+329676: Intel Quark SoC X1000 Datasheet
 .br
 330785: Intel Xeon Processor E5 v3 Product Family Specification Update
 .br
-330836: Intel Core M Processor Family Specification Update
+330836: 5th Generation Intel Core Processor Family,
+Intel Core M Processor Family,
+Mobile Intel Pentium Processor Family, and
+Mobile Intel Celeron Processor Family Specification Update
 .br
 330841: Intel Core i7 Processor Family for LGA2011-v3 Socket Specification Update
 .br
@@ -393,6 +411,24 @@ Specification Update
 .br
 332381: Mobile/Desktop 5th Generation Intel Core Processor Family
 Specification Update
+.br
+332689: 6th Generation Intel Core Processor Family Specification Update
+.br
+333133: Intel Xeon Processor E3-1200 v5 Product Family Specification Update
+.br
+333811: Intel Xeon Processor E5-2600 v4 Product Family Specification Update
+.br
+334165: Intel Xeon Processor E7-8800/4800 v4 Product Family Specification Update
+.br
+334208: Intel Core i7 Processor Family for LGA2011-v3 Socket Specification Update
+.br
+334646: Intel Xeon Phi Processor x200 Product Family
+Preliminary Specification Update
+.br
+334663: 7th Generation Intel Processor Family Specification Update Supporting
+7th Generation Intel Core Processor Families based on U/Y-Processor Line
+.br
+334820: Intel Pentium and Celeron Processor N- and J- Series Specification Update
 .RE
 
 Information on the CPUID instruction and on specific CPUs is available from
@@ -449,7 +485,13 @@ Processors
 .br
 48931: Revision Guide for AMD Family 15h Models 10h-1Fh Processors
 .br
+51603: Revision Guide for AMD Family 15h Models 30h-3Fh Processors
+.br
 51810: Revision Guide for AMD Family 16h Models 00h-0Fh Processors
+.br
+53072: Revision Guide for AMD Family 16h Models 30h-3Fh Processors
+.br
+55370: Revision Guide for AMD Family 15h Models 70h-7Fh Processors
 .RE
 
 Information on the CPUID instruction and on specific CPUs is available

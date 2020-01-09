@@ -1,6 +1,6 @@
 Name:           cpuid
-Version:        20151017
-Release:        4%{?dist}
+Version:        20170122
+Release:        6%{?dist}
 Summary:        Dumps information about the CPU(s)
 
 License:        GPLv2+
@@ -8,7 +8,6 @@ URL:            http://www.etallen.com/cpuid.html
 Source0:        http://www.etallen.com/%{name}/%{name}-%{version}.src.tar.gz
 # Specific to RHEL
 Patch1:         disclaimer.patch
-
 ExclusiveArch:  %{ix86} x86_64
 
 %description
@@ -35,6 +34,12 @@ install -Dp -m 0644 %{name}.man.gz %{buildroot}%{_mandir}/man1/%{name}.1.gz
 %{_bindir}/%{name}
 
 %changelog
+* Tue Jan 24 2017 David Arcari <darcari@redhat.com> - 20170122-6
+- Update to new upstream version 20170122 (rhbz#1381311)
+
+* Tue Nov 22 2016 David Arcari <darcari@redhat.com> - 20161114-5
+- Update to new upstream version 20161114 (rhbz#1381311)
+
 * Wed Jun 22 2016 Jirka Hladky <jhladky@redhat.com> - 20151017-4
 - Fixed license field
 

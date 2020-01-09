@@ -1,6 +1,7 @@
 /*
 ** cpuid dumps CPUID information for each CPU.
-** Copyright 2003,2004,2005,2006,2010,2011,2012,2013,2014,2015 by Todd Allen.
+** Copyright 2003,2004,2005,2006,2010,2011,2012,2013,2014,2015,2016,2017 by 
+** Todd Allen.
 ** 
 ** This program is free software; you can redistribute it and/or
 ** modify it under the terms of the GNU General Public License
@@ -22,6 +23,10 @@
 #define USE_KERNEL_SCHED_SETAFFINITY
 #endif
 
+#if __GNUC__ * 10000 + __GNUC_MINOR__ * 100 + __GNUC_PATCHLEVEL__ >= 40300
+#define USE_CPUID_COUNT
+#endif
+
 #define _GNU_SOURCE
 #include <stdio.h>
 #include <sys/types.h>
@@ -36,6 +41,10 @@
 
 #ifdef USE_CPUID_MODULE
 #include <linux/major.h>
+#endif
+
+#ifdef USE_CPUID_COUNT
+#include <cpuid.h>
 #endif
 
 #ifdef USE_KERNEL_SCHED_SETAFFINITY
@@ -88,6 +97,10 @@ static boolean  strregexp(const char*  haystack,
    if (status != 0) {
       size_t  size = regerror(status, &re, NULL, 0);
       char*   buffer = malloc(size + 1);
+      if (buffer == NULL || size + 1 == 0) {
+         fprintf(stderr, "%s: out of memory\n", program);
+         exit(1);
+      }
       regerror(status, &re, buffer, size);
       fprintf(stderr, "%s: cannot regcomp \"%s\"; error = %s\n",
               program, needle, buffer);
@@ -97,6 +110,10 @@ static boolean  strregexp(const char*  haystack,
    if (status != 0 && status != REG_NOMATCH) {
       size_t  size = regerror(status, &re, NULL, 0);
       char*   buffer = malloc(size + 1);
+      if (buffer == NULL || size + 1 == 0) {
+         fprintf(stderr, "%s: out of memory\n", program);
+         exit(1);
+      }
       regerror(status, &re, buffer, size);
       fprintf(stderr, "%s: cannot regexec string \"%s\" with regexp \"%s\";"
               " error = %s\n",
@@ -258,6 +275,7 @@ typedef struct {
    char           brand[48];
    char           transmeta_info[48];
    char           override_brand[48];
+   char           soc_brand[48];
    hypervisor_t   hypervisor;
 
    struct mp {
@@ -336,7 +354,8 @@ typedef struct {
                     0, 0, 0, 0, 0, 0, \
                     { 0, 0 }, \
                     { 0, 0 }, \
-                    0, 0, 0, 0, 0, 0, "", "", "",     \
+                    0, 0, 0, 0, 0, 0, \
+                    "", "", "", "", \
                     HYPERVISOR_UNKNOWN, \
                     { NULL, -1, -1 }, \
                     { FALSE, \
@@ -1822,6 +1841,7 @@ print_synth_intel(const char*          name,
    FMS (    0, 5,  0, 8,  1,     "Intel Pentium MMX P55C (A0), .25um");
    FMS (    0, 5,  0, 8,  2,     "Intel Pentium MMX P55C (B2), .25um");
    FM  (    0, 5,  0, 8,         "Intel Pentium MMX P55C, .25um");
+   FM  (    0, 5,  0, 9,         "Intel Quark X1000 / D1000 / D2000 / C1000 (Lakemont), 32nm");
    F   (    0, 5,                "Intel Pentium (unknown model)");
    FM  (    0, 6,  0, 0,         "Intel Pentium Pro A-step");
    FMS (    0, 6,  0, 1,  1,     "Intel Pentium Pro (B0)");
@@ -2092,16 +2112,16 @@ print_synth_intel(const char*          name,
    FMSQ(    0, 6,  2,10,  7, Mc, "Intel Mobile Core i3-2000 / Mobile Core i5-2000 / Mobile Core i7-2000 (Sandy Bridge D2/J1/Q0), 32nm");
    FMSQ(    0, 6,  2,10,  7, dc, "Intel Core i3-2000 / Core i5-2000 / Core i7-2000 (Sandy Bridge D2/J1/Q0), 32nm");
    FMSQ(    0, 6,  2,10,  7, MC, "Intel Celeron G400/G500/700/800/B800 (Sandy Bridge J1/Q0), 32nm");
-   FMSQ(    0, 6,  2,10,  7, sX, "Intel Xeon E3-1200 v1 (Sandy Bridge D2/J1/Q0), 32nm");
-   FMSQ(    0, 6,  2,10,  7, dP, "Intel Pentium G500/G600/G800 (Sandy Bridge Q0), 32nm");
-   FMS (    0, 6,  2,10,  7,     "Intel Core i3-2000 / Core i5-2000 / Core i7-2000 / Mobile Core i7-2000 (Sandy Bridge D2/J1/Q0) / Pentium G500/G600/G800 (Sandy Bridge Q0) / Celeron G400/G500/700/800/B800 (Sandy Bridge J1/Q0) / Xeon E3-1200 (Sandy Bridge D2/J1/Q0), 32nm");
+   FMSQ(    0, 6,  2,10,  7, sX, "Intel Xeon E3-1100 / E3-1200 v1 (Sandy Bridge D2/J1/Q0), 32nm");
+   FMSQ(    0, 6,  2,10,  7, dP, "Intel Pentium G500/G600/G800 / Pentium B915C (Sandy Bridge Q0), 32nm");
+   FMS (    0, 6,  2,10,  7,     "Intel Core i3-2000 / Core i5-2000 / Core i7-2000 / Mobile Core i7-2000 (Sandy Bridge D2/J1/Q0) / Pentium G500/G600/G800 / Pentium B915C (Sandy Bridge Q0) / Celeron G400/G500/700/800/B800 (Sandy Bridge J1/Q0) / Xeon E1-1100 / E3-1200 (Sandy Bridge D2/J1/Q0), 32nm");
    FMQ (    0, 6,  2,10,     Xc, "Intel Mobile Core i7 Extreme (Sandy Bridge), 32nm");
    FMQ (    0, 6,  2,10,     Mc, "Intel Mobile Core i3-2000 / Mobile Core i5-2000 / Mobile Core i7-2000 (Sandy Bridge), 32nm");
    FMQ (    0, 6,  2,10,     dc, "Intel Core i5-2000 / Core i7-2000 (Sandy Bridge), 32nm");
    FMQ (    0, 6,  2,10,     MC, "Intel Celeron G400/G500/700/800/B800 (Sandy Bridge), 32nm");
-   FMQ (    0, 6,  2,10,     sX, "Intel Xeon E3-1200 v1 (Sandy Bridge), 32nm");
-   FMQ (    0, 6,  2,10,     dP, "Intel Pentium G500/G600/G800 (Sandy Bridge), 32nm");
-   FM  (    0, 6,  2,10,         "Intel Core i5-2000 / Core i7-2000 / Mobile Core i3-2000 / Mobile Core i5-2000 / Mobile Core i7-2000 / Pentium G500/G600/G800 / Celeron G400/G500/700/800/B800 / Xeon E3-1200 (Sandy Bridge), 32nm");
+   FMQ (    0, 6,  2,10,     sX, "Intel Xeon E3-1100 / E3-1200 v1 (Sandy Bridge), 32nm");
+   FMQ (    0, 6,  2,10,     dP, "Intel Pentium G500/G600/G800 / Pentium B915C (Sandy Bridge), 32nm");
+   FM  (    0, 6,  2,10,         "Intel Core i5-2000 / Core i7-2000 / Mobile Core i3-2000 / Mobile Core i5-2000 / Mobile Core i7-2000 / Pentium G500/G600/G800 / Pentium B915C / Celeron G400/G500/700/800/B800 / Xeon E1-1100 / E3-1200 (Sandy Bridge), 32nm");
    FMSQ(    0, 6,  2,12,  2, dc, "Intel Core i7-900 / Core i7-980X (Gulftown B1), 32nm");
    FMSQ(    0, 6,  2,12,  2, sX, "Intel Xeon Processor 3600 (Westmere-EP B1) / Xeon Processor 5600 (Westmere-EP B1), 32nm");
    FMS (    0, 6,  2,12,  2,     "Intel Core i7-900 (Gulftown B1) / Core i7-980X (Gulftown B1) / Xeon Processor 3600 (Westmere-EP B1) / Xeon Processor 5600 (Westmere-EP B1), 32nm");
@@ -2119,8 +2139,13 @@ print_synth_intel(const char*          name,
    FM  (    0, 6,  2,14,         "Intel Xeon (Beckton), 45nm");
    FMS (    0, 6,  2,15,  2,     "Intel Xeon E7-8800 / Xeon E7-4800 / Xeon E7-2800 (Westmere-EX A2), 32nm");
    FM  (    0, 6,  2,15,         "Intel Xeon E7-8800 / Xeon E7-4800 / Xeon E7-2800 (Westmere-EX), 32nm");
-   FMS (    0, 6,  3, 6,  1,     "Intel Atom D2000/N2000 (Cedarview B1/B2/B3), 32nm");
-   FM  (    0, 6,  3, 6,         "Intel Atom D2000/N2000 (Cedarview), 32nm");
+   FMS (    0, 6,  3, 5,  1,     "Intel Atom Z2760 (Clover Trail C0) / Z8000 (Cherry Trail C0), 14nm");
+   FM  (    0, 6,  3, 5,         "Intel Atom Z2760 (Clover Trail) / Z8000 (Cherry Trail), 14nm");
+   // Intel docs (328198) do not provide any FMS for Centerton, but an example
+   // from jhladky@redhat.com does.
+   FMS (    0, 6,  3, 6,  1,     "Intel Atom D2000/N2000 (Cedarview B1/B2/B3) / S1200 (Centerton B1), 32nm");
+   FM  (    0, 6,  3, 6,         "Intel Atom D2000/N2000 (Cedarview) / S1200 (Centerton B1), 32nm");
+   FMS (    0, 6,  3, 7,  1,     "Intel Atom Z3000 (Bay Trail-T B2/B3), 22nm");
    FMS (    0, 6,  3, 7,  2,     "Intel Pentium / Celeron (Bay Trail-M B1), 22nm");
    FMS (    0, 6,  3, 7,  3,     "Intel Pentium N3500 / J2850 / Celeron N1700 / N1800 / N2800 / N2900 (Bay Trail-M B2/B3), 22nm");
    FMSQ(    0, 6,  3, 7,  8, dC, "Intel Celeron N2800 / N2900 (Bay Trail-M C0), 22nm");
@@ -2129,14 +2154,14 @@ print_synth_intel(const char*          name,
    FM  (    0, 6,  3, 7,         "Intel Pentium N3500 / J2850 / Celeron N1700 / N1800 / N2800 / N2900 (Bay Trail-M) / Atom Z3000 (Bay Trail-T), 22nm");
    FMSQ(    0, 6,  3,10,  9, Mc, "Intel Mobile Core i3-3000 (Ivy Bridge L1) / i5-3000 (Ivy Bridge L1) / i7-3000 (Ivy Bridge E1/L1) / Pentium 900/1000/2000/2100 (P0), 22nm");
    FMSQ(    0, 6,  3,10,  9, dc, "Intel Core i3-3000 (Ivy Bridge L1) / i5-3000 (Ivy Bridge E1/N0/L1) / i7-3000 (Ivy Bridge E1), 22nm");
-   FMSQ(    0, 6,  3,10,  9, sX, "Intel Xeon E3-1200 v2 (Ivy Bridge E1/N0/L1), 22nm");
-   FMSQ(    0, 6,  3,10,  9, dP, "Intel Pentium G1600/G2000/G2100 (Ivy Bridge P0), 22nm");
-   FMS (    0, 6,  3,10,  9,     "Intel Core i3-3000 (Ivy Bridge L1) / i5-3000 (Ivy Bridge E1/N0/L1) / i7-3000 (Ivy Bridge E1) / Mobile Core i3-3000 (Ivy Bridge L1) / i5-3000 (Ivy Bridge L1) / Mobile Core i7-3000 (Ivy Bridge E1/L1) / Xeon E3-1200 v2 (Ivy Bridge E1/N0/L1) / Pentium G1600/G2000/G2100 (Ivy Bridge P0) / Pentium 900/1000/2000/2100 (P0), 22nm");
+   FMSQ(    0, 6,  3,10,  9, sX, "Intel Xeon E3-1100 v2 / E3-1200 v2 (Ivy Bridge E1/N0/L1), 22nm");
+   FMSQ(    0, 6,  3,10,  9, dP, "Intel Pentium G1600/G2000/G2100 / Pentium B925C (Ivy Bridge P0), 22nm");
+   FMS (    0, 6,  3,10,  9,     "Intel Core i3-3000 (Ivy Bridge L1) / i5-3000 (Ivy Bridge E1/N0/L1) / i7-3000 (Ivy Bridge E1) / Mobile Core i3-3000 (Ivy Bridge L1) / i5-3000 (Ivy Bridge L1) / Mobile Core i7-3000 (Ivy Bridge E1/L1) / Xeon E3-1100 v2 / E3-1200 v2 (Ivy Bridge E1/N0/L1) / Pentium G1600/G2000/G2100 / Pentium B925C (Ivy Bridge P0) / Pentium 900/1000/2000/2100 (P0), 22nm");
    FMQ (    0, 6,  3,10,     Mc, "Intel Mobile Core i3-3000 (Ivy Bridge) / Mobile Core i5-3000 (Ivy Bridge) / Mobile Core i7-3000 (Ivy Bridge) / Pentium 900/1000/2000/2100, 22nm");
    FMQ (    0, 6,  3,10,     dc, "Intel Core i3-3000 (Ivy Bridge) / i5-3000 (Ivy Bridge) / i7-3000 (Ivy Bridge), 22nm");
-   FMQ (    0, 6,  3,10,     sX, "Intel Xeon E3-1200 v2 (Ivy Bridge), 22nm");
-   FMQ (    0, 6,  3,10,     dP, "Intel Pentium G1600/G2000/G2100 (Ivy Bridge), 22nm");
-   FM  (    0, 6,  3,10,         "Intel Core i3-3000 (Ivy Bridge) / i5-3000 (Ivy Bridge) / i7-3000 (Ivy Bridge) / Mobile Core i3-3000 (Ivy Bridge) / Mobile Core i5-3000 (Ivy Bridge) / Mobile Core i7-3000 (Ivy Bridge) / Xeon E3-1200 v2 (Ivy Bridge) / Pentium G1600/G2000/G2100 (Ivy Bridge) / Pentium 900/1000/2000/2100, 22nm");
+   FMQ (    0, 6,  3,10,     sX, "Intel Xeon E3-1100 v2 / E3-1200 v2 (Ivy Bridge), 22nm");
+   FMQ (    0, 6,  3,10,     dP, "Intel Pentium G1600/G2000/G2100 / Pentium B925C (Ivy Bridge), 22nm");
+   FM  (    0, 6,  3,10,         "Intel Core i3-3000 (Ivy Bridge) / i5-3000 (Ivy Bridge) / i7-3000 (Ivy Bridge) / Mobile Core i3-3000 (Ivy Bridge) / Mobile Core i5-3000 (Ivy Bridge) / Mobile Core i7-3000 (Ivy Bridge) / Xeon E3-1100 v2 / E3-1200 v2 (Ivy Bridge) / Pentium G1600/G2000/G2100 (Ivy Bridge) / Pentium 900/1000/2000/2100 / Pentium B925C, 22nm");
    // Intel docs (328899, 328903, 328908) omit the stepping numbers for (0,6),(3,12) C0 & D0.
    FMQ (    0, 6,  3,12,     sX, "Intel Xeon E3-1200 v3 (Haswell), 22nm");
    FMQ (    0, 6,  3,12,     Mc, "Intel Mobile Core i3-4000U / Mobile Core i5-4000U / Mobile Core i7-4000U (Mobile M) (Haswell), 22nm");
@@ -2175,31 +2200,64 @@ print_synth_intel(const char*          name,
    FMQ (    0, 6,  4, 6,     MC, "Intel Mobile Celeron 2900U (Mobile H) (Haswell), 22nm");
    FMQ (    0, 6,  4, 6,     dP, "Intel Pentium G3000 (Desktop R) (Haswell), 22nm");
    FM  (    0, 6,  4, 6,         "Intel Core i5-4000 / i7-4000 / Mobile Core i3-4000 / i5-4000 / i7-4000 / Mobile Core i5-4000 / Mobile Core i5-4000 / Mobile Core i7-4000 / Pentium G3000 / Celeron G1800 / Mobile Pentium 3500U/3600U/3500Y / Mobile Celeron 2900U / Xeon E3-1200 v3 (Desktop R/Mobile H) (Haswell), 22nm");
-   // So far, all these (0,6), (4,7) processors are stepping G0, but the
+   // So far, all these (0,6),(4,7) processors are stepping G0, but the
    // Intel docs (332381, 332382) omit the stepping number for G0.
    FMQ (    0, 6,  4, 7,     dc, "Intel Core i7-5000 (Broadwell), 14nm");
    FMQ (    0, 6,  4, 7,     Mc, "Intel Mobile Core i7-5000 (Broadwell), 14nm");
    FMQ (    0, 6,  4, 7,     sX, "Intel Xeon E3-1200 v4 (Broadwell), 14nm");
    FM  (    0, 6,  4, 7,         "Intel Core i7-5000 / Mobile Core i7-5000 / Xeon E3-1200 v4 (Broadwell), 14nm");
-   FM  (    0, 6,  4,10,         "Intel Atom Z3400 (Merrifield), 22nm"); // no spec update; only 325462 Table 35-1 so far
+   FM  (    0, 6,  4,10,         "Intel Atom Z3400 (Merrifield), 22nm"); // no spec update; only 325462 Volume 3 Table 35-1 so far
+   // The (0,6),(4,12) processors also have a D1 stepping, but the
+   // Intel docs (332095) omit the stepping number.
    FMS (    0, 6,  4,12,  0,     "Intel Pentium N3000 / Celeron N3000 (Braswell C0), 14nm");
-   FMS (    0, 6,  4,12,  3,     "Intel Atom Z8000 (Cherry Trail C0), 14nm");
-   FM  (    0, 6,  4,12,         "Intel Pentium N3000 / Celeron N3000 (Braswell) / Atom Z8000 (Cherry Trail), 14nm");
+   FM  (    0, 6,  4,12,         "Intel Pentium N3000 / Celeron N3000 (Braswell), 14nm");
+   FMS (    0, 6,  4,13,  0,     "Intel Atom C2000 (Avoton A0/A1), 22nm");
    FMS (    0, 6,  4,13,  8,     "Intel Atom C2000 (Avoton B0), 22nm");
    FM  (    0, 6,  4,13,         "Intel Atom C2000 (Avoton), 22nm");
-   FM  (    0, 6,  4,14,         "Intel Core / Xeon E3-1500m (Skylake), 14nm"); // no spec update; only 325462 Table 35-1 so far
-   FM  (    0, 6,  4,15,         "Intel Xeon (Broadwell), 14nm"); // no spec update; only 325462 Table 35-1 so far
-   FM  (    0, 6,  5, 7,         "Intel Xeon Phi Coprocessor (Knights Landing), 14nm"); // no spec update; only 325462 Table 35-1 so far
+   // Intel docs (332689) omit the stepping numbers for (0,6),(4,14) D1 & K1.
+   FMQ (    0, 6,  4,14,     dc, "Intel Core i3-6000U / i5-6000U / i7-6000U / m3-6Y00 / m5-6Y00 / m7-6Y00 (Skylake), 14nm");
+   FMQ (    0, 6,  4,14,     dP, "Intel Pentium 4405U / Pentium 4405Y (Skylake), 14nm");
+   FMQ (    0, 6,  4,14,     dC, "Intel Celeron 3800U / 39000U (Skylake), 14nm");
+   FMQ (    0, 6,  4,14,     sX, "Intel Xeon E3-1500m (Skylake), 14nm"); // no spec update; only 325462 Volume 3 Table 35-1 so far
+   FM  (    0, 6,  4,14,         "Intel Core i3-6000U / i5-6000U / i7-6000U / m3-6Y00 / m5-6Y00 / m7-6Y00 / Pentium 4405U / Pentium 4405Y / Celeron 3800U / 39000U / Xeon E3-1500m (Skylake), 14nm");
+   // Intel docs (334208,333811) omit the stepping numbers for (0,6),(4,15)
+   // B0, M0 & R0.
+   FMQ (    0, 6,  4,15,     dc, "Intel Core i7-6800K / i7-6900K / i7-6900X (Broadwell-E), 14nm");
+   FMQ (    0, 6,  4,15,     sX, "Intel Xeon E5-1600 / E5-2600 / E5-4600 v4 (Broadwell) / E7-4800 / E7-8800 v4 (Broadwell-EX), 14nm");
+   FM  (    0, 6,  4,15,         "Intel Core i7-6800K / i7-6900K / i7-6900X (Broadwell-E) / Xeon E5-1600 / E5-2500 / E5-4600 (Broadwell) / E7-4800 / E7-8800 v4 (Broadwell-EX), 14nm");
    FMS (    0, 6,  5, 6,  1,     "Intel Xeon D-1500 (Broadwell-DE U0), 14nm");
    FMS (    0, 6,  5, 6,  2,     "Intel Xeon D-1500 (Broadwell-DE V1), 14nm");
+   FMS (    0, 6,  5, 6,  3,     "Intel Xeon D-1500 (Broadwell-DE V2), 14nm");
+   FMS (    0, 6,  5, 6,  4,     "Intel Xeon D-1500 (Broadwell-DE Y0), 14nm");
    FM  (    0, 6,  5, 6,         "Intel Xeon D-1500 (Broadwell-DE), 14nm");
-   FM  (    0, 6,  5,10,         "Intel Atom Z3400 (Moorefield), 22nm"); // no spec update; only 325462 Table 35-1 so far
-   FM  (    0, 6,  5,13,         "Intel Atom X3-C3000 (SoFIA), 22nm"); // no spec update; only 325462 Table 35-1 so far
-   // So far, all these (0,6), (5,14) processors are stepping R0, but the
-   // Intel docs (332689) omit the stepping number for R0.
-   FMQ (    0, 6,  5,14,     dc, "Intel Core i5-6600K / i7-6700K (Skylake), 14nm");
-   FMQ (    0, 6,  5,14,     sX, "Intel Xeon E3-1500m (Skylake), 14nm"); // no spec update; only 325462 Table 35-1 so far
-   FM  (    0, 6,  5,14,         "Intel Core i5-6600K / i7-6700K / Xeon E3-1500m (Skylake), 14nm");
+   // Intel docs (334646) omit the stepping number for B0.  But as of Jan 2017,
+   // it is the only stepping, and all examples seen have stepping number 1.
+   FMS (    0, 6,  5, 7,  1,     "Intel Xeon Phi x200 (Knights Landing B0), 14nm");
+   FM  (    0, 6,  5, 7,         "Intel Xeon Phi x200 (Knights Landing), 14nm");
+   FM  (    0, 6,  5,10,         "Intel Atom Z3400 (Moorefield), 22nm"); // no spec update; only 325462 Volume 3 Table 35-1 so far
+   // Intel docs (334820) omit the stepping numbers for B0 & B1.
+   FMSQ(    0, 6,  5,12,  9, dP, "Intel Pentium N4000 / J4000 (Apollo Lake), 14nm");
+   FMSQ(    0, 6,  5,12,  9, dC, "Intel Celeron N3000 / J3000 (Apollo Lake), 14nm");
+   FMS (    0, 6,  5,12,  9,     "Intel Pentium N4000 / J4000 / Celeron N3000 / J3000 (Apollo Lake), 14nm");
+   FM  (    0, 6,  5,12,         "Intel Atom (Goldmont) / Pentium N4000 / J4000 / Celeron N3000 / J3000 (Apollo Lake), 14nm"); // no spec update for Goldmont; only 325462 Volume 3 Table 35-1 so far
+   FM  (    0, 6,  5,13,         "Intel Atom X3-C3000 (SoFIA), 22nm"); // no spec update; only 325462 Volume 3 Table 35-1 so far
+   // Intel docs (332689,333133) omit the stepping numbers for (0,6),(5,14)
+   // R0 & S0.
+   FMQ (    0, 6,  5,14,     dc, "Intel Core i3-6000 / i5-6000 / i7-6000 (Skylake), 14nm");
+   FMQ (    0, 6,  5,14,     dP, "Intel Pentium G4000 (Skylake), 14nm");
+   FMQ (    0, 6,  5,14,     dC, "Intel Celeron G3900 (Skylake), 14nm");
+   FMQ (    0, 6,  5,14,     sX, "Intel Xeon E3-1200 v5 (Skylake), 14nm");
+   FM  (    0, 6,  5,14,         "Intel Core i3-6000 / i5-6000 / i7-6000 / Pentium G4000 / Celeron G3900 / Xeon E3-1200 (Skylake), 14nm");
+   FM  (    0, 6,  5,15,         "Intel Atom (Goldmont), 14nm"); // no spec update; only 325462 Volume 3 Table 35-1 so far
+   FM  (    0, 6,  8, 5,         "Intel Xeon Phi (Knights Mill), 14nm"); // no spec update; 325462 Volume 3 Table 35-1 is vague; Piotr Luc said it would be Knights Mill
+   // So far, all these (0,6),(8,14) processors are stepping H0, but the
+   // Intel docs (334663) omit the stepping number for H0.
+   FMQ (    0, 6,  8,14,     dc, "Intel m3-7Y00 / i5-7Y00 / i7-7Y00 / i3-7000U / i5-7000U / i7-7000U (Kaby Lake), 14nm");
+   FMQ (    0, 6,  8,14,     dP, "Intel Pentium 4410Y / 4415U (Kaby Lake), 14nm");
+   FMQ (    0, 6,  8,14,     dC, "Intel Celeron 3965Y / 3865U / 3965U (Kaby Lake), 14nm");
+   FM  (    0, 6,  8,14,         "Intel m3-7Y00 / i5-7Y00 / i7-7Y00 / i3-7000U / i5-7000U / i7-7000U / Pentium 4410Y / 4415U / Celeron 3965Y / 3865U / 3965U (Kaby Lake), 14nm");
+   FMQ (    0, 6,  9,14,     dc, "Intel Core i5-7000 / i5-7000K / i5-7000T / i7-7000 / E3-15x5MV6 / i3-7100H / i5-7000HQ / i7-7000HQ (Kaby Lake), 14nm");
+   FM  (    0, 6,  9,14,         "Intel Core i5-7000 / i5-7000K / i5-7000T / i7-7000 / E3-15x5MV6 / i3-7100H / i5-7000HQ / i7-7000HQ (Kaby Lake), 14nm");
    FQ  (    0, 6,            sX, "Intel Xeon (unknown model)");
    FQ  (    0, 6,            se, "Intel Xeon (unknown model)");
    FQ  (    0, 6,            MC, "Intel Mobile Celeron (unknown model)");
@@ -2773,147 +2831,157 @@ print_synth_amd(const char*          name,
    FMS (0,15, 12, 1,  3,     "AMD Athlon 64 FX Dual-Core (Windsor JH-F3), 90nm");
    FM  (0,15, 12, 1,         "AMD Athlon 64 FX Dual-Core (Windsor), 90nm");
    F   (0,15,                "AMD Opteron / Athlon 64 / Athlon 64 FX / Sempron / Turion / Athlon Neo / Dual Core Opteron / Athlon 64 X2 / Athlon 64 FX / mobile Athlon 64 / mobile Sempron / mobile Athlon XP-M (DP) (unknown model)");
-   FMSQ(1,15,  0, 2,  1, dO, "AMD Quad-Core Opteron (Barcelona DR-B1), 65nm");
-   FMS (1,15,  0, 2,  1,     "AMD Quad-Core Opteron (Barcelona DR-B1), 65nm");
-   FMSQ(1,15,  0, 2,  2, EO, "AMD Embedded Opteron (Barcelona DR-B2), 65nm");
-   FMSQ(1,15,  0, 2,  2, dO, "AMD Quad-Core Opteron (Barcelona DR-B2), 65nm");
-   FMSQ(1,15,  0, 2,  2, Tp, "AMD Phenom Triple-Core (Toliman DR-B2), 65nm");
-   FMSQ(1,15,  0, 2,  2, Qp, "AMD Phenom Quad-Core (Agena DR-B2), 65nm");
-   FMS (1,15,  0, 2,  2,     "AMD Quad-Core Opteron (Barcelona DR-B2) / Embedded Opteron (Barcelona DR-B2) / Phenom Triple-Core (Toliman DR-B2) / Phenom Quad-Core (Agena DR-B2), 65nm");
-   FMQ (1,15,  0, 2,     EO, "AMD Embedded Opteron (Barcelona), 65nm");
-   FMQ (1,15,  0, 2,     dO, "AMD Quad-Core Opteron (Barcelona), 65nm");
-   FMQ (1,15,  0, 2,     Tp, "AMD Phenom Triple-Core (Toliman), 65nm");
-   FMQ (1,15,  0, 2,     Qp, "AMD Phenom Quad-Core (Agena), 65nm");
-   FM  (1,15,  0, 2,         "AMD Opteron (Barcelona) / Phenom Triple-Core (Toliman) / Phenom Quad-Core (Agena), 65nm");
-   FMSQ(1,15,  0, 2,  3, EO, "AMD Embedded Opteron (Barcelona DR-B3), 65nm");
-   FMSQ(1,15,  0, 2,  3, dO, "AMD Quad-Core Opteron (Barcelona DR-B3), 65nm");
-   FMSQ(1,15,  0, 2,  3, Tp, "AMD Phenom Triple-Core (Toliman DR-B3), 65nm");
-   FMSQ(1,15,  0, 2,  3, Qp, "AMD Phenom Quad-Core (Agena DR-B3), 65nm");
-   FMSQ(1,15,  0, 2,  3, dA, "AMD Athlon Dual-Core (Kuma DR-B3), 65nm");
-   FMS (1,15,  0, 2,  3,     "AMD Quad-Core Opteron (Barcelona DR-B3) / Embedded Opteron (Barcelona DR-B2) / Phenom Triple-Core (Toliman DR-B3) / Phenom Quad-Core (Agena DR-B3) / Athlon Dual-Core (Kuma DR-B3), 65nm");
-   FMS (1,15,  0, 2, 10,     "AMD Quad-Core Opteron (Barcelona DR-BA), 65nm");
-   FMQ (1,15,  0, 2,     EO, "AMD Embedded Opteron (Barcelona), 65nm");
-   FMQ (1,15,  0, 2,     dO, "AMD Quad-Core Opteron (Barcelona), 65nm");
-   FMQ (1,15,  0, 2,     Tp, "AMD Phenom Triple-Core (Toliman), 65nm");
-   FMQ (1,15,  0, 2,     Qp, "AMD Phenom Quad-Core (Agena), 65nm");
-   FMQ (1,15,  0, 2,     dA, "AMD Athlon Dual-Core (Kuma), 65nm");
-   FM  (1,15,  0, 2,         "AMD Quad-Core Opteron (Barcelona) / Phenom Triple-Core (Toliman) / Phenom Quad-Core (Agena) / Athlon Dual-Core (Kuma), 65nm");
-   FMSQ(1,15,  0, 4,  2, EO, "AMD Embedded Opteron (Shanghai RB-C2), 45nm");
-   FMSQ(1,15,  0, 4,  2, dO, "AMD Quad-Core Opteron (Shanghai RB-C2), 45nm");
-   FMSQ(1,15,  0, 4,  2, dR, "AMD Athlon Dual-Core (Propus RB-C2), 45nm");
-   FMSQ(1,15,  0, 4,  2, dA, "AMD Athlon Dual-Core (Regor RB-C2), 45nm");
-   FMSQ(1,15,  0, 4,  2, Dp, "AMD Phenom II X2 (Callisto RB-C2), 45nm");
-   FMSQ(1,15,  0, 4,  2, Tp, "AMD Phenom II X3 (Heka RB-C2), 45nm");
-   FMSQ(1,15,  0, 4,  2, Qp, "AMD Phenom II X4 (Deneb RB-C2), 45nm");
-   FMS (1,15,  0, 4,  2,     "AMD Quad-Core Opteron (Shanghai RB-C2) / Embedded Opteron (Shanghai RB-C2) / Athlon Dual-Core (Regor / Propus RB-C2) / Phenom II (Callisto / Heka / Deneb RB-C2), 45nm");
-   FMSQ(1,15,  0, 4,  3, Dp, "AMD Phenom II X2 (Callisto RB-C3), 45nm");
-   FMSQ(1,15,  0, 4,  3, Tp, "AMD Phenom II X3 (Heka RB-C3), 45nm");
-   FMSQ(1,15,  0, 4,  3, Qp, "AMD Phenom II X4 (Deneb RB-C3), 45nm");
-   FMS (1,15,  0, 4,  3,     "AMD Phenom II (Callisto / Heka / Deneb RB-C3), 45nm");
-   FMQ (1,15,  0, 4,     EO, "AMD Embedded Opteron (Shanghai), 45nm");
-   FMQ (1,15,  0, 4,     dO, "AMD Quad-Core Opteron (Shanghai), 45nm");
-   FMQ (1,15,  0, 4,     dR, "AMD Athlon Dual-Core (Propus), 45nm");
-   FMQ (1,15,  0, 4,     dA, "AMD Athlon Dual-Core (Regor), 45nm");
-   FMQ (1,15,  0, 4,     Dp, "AMD Phenom II X2 (Callisto), 45nm");
-   FMQ (1,15,  0, 4,     Tp, "AMD Phenom II X3 (Heka), 45nm");
-   FMQ (1,15,  0, 4,     Qp, "AMD Phenom II X4 (Deneb), 45nm");
-   FM  (1,15,  0, 4,         "AMD Quad-Core Opteron (Shanghai) / Athlon Dual-Core (Regor / Propus) / Phenom II (Callisto / Heka / Deneb), 45nm");
-   FMSQ(1,15,  0, 5,  2, DA, "AMD Athlon II X2 (Regor BL-C2), 45nm");
-   FMSQ(1,15,  0, 5,  2, TA, "AMD Athlon II X3 (Rana BL-C2), 45nm");
-   FMSQ(1,15,  0, 5,  2, QA, "AMD Athlon II X4 (Propus BL-C2), 45nm");
-   FMS (1,15,  0, 5,  2,     "AMD Athlon II X2 / X3 / X4 (Regor / Rana / Propus BL-C2), 45nm");
-   FMSQ(1,15,  0, 5,  3, TA, "AMD Athlon II X3 (Rana BL-C3), 45nm");
-   FMSQ(1,15,  0, 5,  3, QA, "AMD Athlon II X4 (Propus BL-C3), 45nm");
-   FMSQ(1,15,  0, 5,  3, Tp, "AMD Phenom II Triple-Core (Heka BL-C3), 45nm");
-   FMSQ(1,15,  0, 5,  3, Qp, "AMD Phenom II Quad-Core (Deneb BL-C3), 45nm");
-   FMS (1,15,  0, 5,  3,     "AMD Athlon II X3 / X4 (Rana / Propus BL-C3) / Phenom II Triple-Core (Heka BL-C3) / Quad-Core (Deneb BL-C3), 45nm");
-   FMQ (1,15,  0, 5,     DA, "AMD Athlon II X2 (Regor), 45nm");
-   FMQ (1,15,  0, 5,     TA, "AMD Athlon II X3 (Rana), 45nm");
-   FMQ (1,15,  0, 5,     QA, "AMD Athlon II X4 (Propus), 45nm");
-   FMQ (1,15,  0, 5,     Tp, "AMD Phenom II Triple-Core (Heka), 45nm");
-   FMQ (1,15,  0, 5,     Qp, "AMD Phenom II Quad-Core (Deneb), 45nm");
-   FM  (1,15,  0, 5,         "AMD Athlon II X2 / X3 / X4 (Regor / Rana / Propus) / Phenom II Triple-Core (Heka) / Quad-Core (Deneb), 45nm");
-   FMSQ(1,15,  0, 6,  2, MS, "AMD Sempron Mobile (Sargas DA-C2), 45nm");
-   FMSQ(1,15,  0, 6,  2, dS, "AMD Sempron II (Sargas DA-C2), 45nm");
-   FMSQ(1,15,  0, 6,  2, MT, "AMD Turion II Dual-Core Mobile (Caspian DA-C2), 45nm");
-   FMSQ(1,15,  0, 6,  2, MA, "AMD Athlon II Dual-Core Mobile (Regor DA-C2), 45nm");
-   FMSQ(1,15,  0, 6,  2, DA, "AMD Athlon II X2 (Regor DA-C2), 45nm");
-   FMSQ(1,15,  0, 6,  2, dA, "AMD Athlon II (Sargas DA-C2), 45nm");
-   FMS (1,15,  0, 6,  2,     "AMD Athlon II (Sargas DA-C2) / Athlon II X2 (Regor DA-C2) / Sempron II (Sargas DA-C2) / Athlon II Dual-Core Mobile (Regor DA-C2) / Sempron Mobile (Sargas DA-C2) / Turion II Dual-Core Mobile (Caspian DA-C2), 45nm");
-   FMSQ(1,15,  0, 6,  3, Ms, "AMD V-Series Mobile (Champlain DA-C3), 45nm");
-   FMSQ(1,15,  0, 6,  3, DS, "AMD Sempron II X2 (Regor DA-C3), 45nm");
-   FMSQ(1,15,  0, 6,  3, dS, "AMD Sempron II (Sargas DA-C3), 45nm");
-   FMSQ(1,15,  0, 6,  3, MT, "AMD Turion II Dual-Core Mobile (Champlain DA-C3), 45nm");
-   FMSQ(1,15,  0, 6,  3, Mp, "AMD Phenom II Dual-Core Mobile (Champlain DA-C3), 45nm");
-   FMSQ(1,15,  0, 6,  3, MA, "AMD Athlon II Dual-Core Mobile (Champlain DA-C3), 45nm");
-   FMSQ(1,15,  0, 6,  3, DA, "AMD Athlon II X2 (Regor DA-C3), 45nm");
-   FMSQ(1,15,  0, 6,  3, dA, "AMD Athlon II (Sargas DA-C3), 45nm");
-   FMS (1,15,  0, 6,  3,     "AMD Athlon II (Sargas DA-C3) / Athlon II X2 (Regor DA-C2) / Sempron II (Sargas DA-C2) / Sempron II X2 (Regor DA-C3) / V-Series Mobile (Champlain DA-C3) / Athlon II Dual-Core Mobile (Champlain DA-C3) / Turion II Dual-Core Mobile (Champlain DA-C3) / Phenom II Dual-Core Mobile (Champlain DA-C3), 45nm");
-   FMQ (1,15,  0, 6,     Ms, "AMD V-Series Mobile (Champlain), 45nm");
-   FMQ (1,15,  0, 6,     MS, "AMD Sempron Mobile (Sargas), 45nm");
-   FMQ (1,15,  0, 6,     DS, "AMD Sempron II X2 (Regor), 45nm");
-   FMQ (1,15,  0, 6,     dS, "AMD Sempron II (Sargas), 45nm");
-   FMQ (1,15,  0, 6,     MT, "AMD Turion II Dual-Core Mobile (Caspian / Champlain), 45nm");
-   FMQ (1,15,  0, 6,     Mp, "AMD Phenom II Dual-Core Mobile (Champlain), 45nm");
-   FMQ (1,15,  0, 6,     MA, "AMD Athlon II Dual-Core Mobile (Regor / Champlain), 45nm");
-   FMQ (1,15,  0, 6,     DA, "AMD Athlon II X2 (Regor), 45nm");
-   FMQ (1,15,  0, 6,     dA, "AMD Athlon II (Sargas), 45nm");
-   FM  (1,15,  0, 6,         "AMD Athlon II (Sargas) / Athlon II X2 (Regor) / Sempron II (Sargas) / Sempron II X2 (Regor) / Sempron Mobile (Sargas) / V-Series Mobile (Champlain) / Athlon II Dual-Core Mobile (Regor / Champlain) / Turion II Dual-Core Mobile (Caspian / Champlain) / Phenom II Dual-Core Mobile (Champlain), 45nm");
-   FMSQ(1,15,  0, 8,  0, SO, "AMD Six-Core Opteron (Istanbul HY-D0), 45nm");
-   FMSQ(1,15,  0, 8,  0, dO, "AMD Opteron 4100 (Lisbon HY-D0), 45nm");
-   FMS (1,15,  0, 8,  0,     "AMD Opteron 4100 (Lisbon HY-D0) / Six-Core Opteron (Istanbul HY-D0), 45nm");
-   FMS (1,15,  0, 8,  1,     "AMD Opteron 4100 (Lisbon HY-D1), 45nm");
-   FMQ (1,15,  0, 8,     SO, "AMD Six-Core Opteron (Istanbul), 45nm");
-   FMQ (1,15,  0, 8,     dO, "AMD Opteron 4100 (Lisbon), 45nm");
-   FM  (1,15,  0, 8,         "AMD Opteron 4100 (Lisbon) / Six-Core Opteron (Istanbul), 45nm");
-   FMS (1,15,  0, 9,  1,     "AMD Opteron 6100 (Magny-Cours HY-D1), 45nm");
-   FM  (1,15,  0, 9,         "AMD Opteron 6100 (Magny-Cours), 45nm");
-   FMSQ(1,15,  0,10,  0, Qp, "AMD Phenom II X4 (Zosma PH-E0), 45nm");
-   FMSQ(1,15,  0,10,  0, Sp, "AMD Phenom II X6 (Thuban PH-E0), 45nm");
-   FMS (1,15,  0,10,  0,     "AMD Phenom II X4 / X6 (Zosma / Thuban PH-E0), 45nm");
-   FMQ (1,15,  0,10,     Qp, "AMD Phenom II X4 (Zosma), 45nm");
-   FMQ (1,15,  0,10,     Sp, "AMD Phenom II X6 (Thuban), 45nm");
-   FM  (1,15,  0,10,         "AMD Phenom II X4 / X6 (Zosma / Thuban), 45nm");
-   F   (1,15,                "AMD Athlon / Athlon II / Athlon II Xn / Opteron / Opteron 4100 / Opteron 6100 / Embedded Opteron / Phenom / Phenom II / Phenom II Xn / Sempron II / Sempron II Xn / Sempron Mobile / Turion II / V-Series Mobile");
-   FMSQ(2,15,  0, 3,  1, MT, "AMD Turion X2 Dual-Core Mobile (Lion LG-B1), 65nm");
-   FMSQ(2,15,  0, 3,  1, DS, "AMD Sempron X2 Dual-Core (Sable LG-B1), 65nm");
-   FMSQ(2,15,  0, 3,  1, dS, "AMD Sempron (Sable LG-B1), 65nm");
-   FMSQ(2,15,  0, 3,  1, DA, "AMD Athlon X2 Dual-Core (Lion LG-B1), 65nm");
-   FMSQ(2,15,  0, 3,  1, dA, "AMD Athlon (Lion LG-B1), 65nm");
-   FMS (2,15,  0, 3,  1,     "AMD Turion X2 Dual-Core Mobile (Lion LG-B1) / Athlon (Lion LG-B1) / Athlon X2 Dual-Core (Lion LG-B1) / Sempron (Sable LG-B1) / Sempron X2 Dual-Core (Sable LG-B1), 65nm");
-   FMQ (2,15,  0, 3,     MT, "AMD Turion X2 (Lion), 65nm");
-   FMQ (2,15,  0, 3,     DS, "AMD Sempron X2 Dual-Core (Sable), 65nm");
-   FMQ (2,15,  0, 3,     dS, "AMD Sempron (Sable), 65nm");
-   FMQ (2,15,  0, 3,     DA, "AMD Athlon X2 Dual-Core (Lion), 65nm");
-   FMQ (2,15,  0, 3,     dA, "AMD Athlon (Lion), 65nm");
-   FM  (2,15,  0, 3,         "AMD Turion X2 (Lion) / Athlon (Lion) / Sempron (Sable), 65nm");
-   F   (2,15,                "AMD Turion X2 Mobile / Athlon / Athlon X2 / Sempron / Sempron X2, 65nm");
-   FMSQ(3,15,  0, 1,  0, dS, "AMD Sempron Dual-Core (Llano LN-B0), 32nm");
-   FMSQ(3,15,  0, 1,  0, dA, "AMD Athlon II Dual-Core (Llano LN-B0), 32nm");
-   FMSQ(3,15,  0, 1,  0, Ms, "AMD A-Series (Llano LN-B0) / E2-Series (Llano LN-B0), 32nm");
-   FMS (3,15,  0, 1,  0,     "AMD Sempron Dual-Core (Llano LN-B0) / Athlon II Dual-Core (Llano LN-B0) / A-Series (Llano LN-B0) / E2-Series (Llano LN-B0), 32nm");
-   FMQ (3,15,  0, 1,     dS, "AMD Sempron Dual-Core (Llano), 32nm");
-   FMQ (3,15,  0, 1,     dA, "AMD Athlon II Dual-Core (Llano), 32nm");
-   FMQ (3,15,  0, 1,     Ms, "AMD A-Series (Llano) / E2-Series (Llano), 32nm");
-   FM  (3,15,  0, 1,         "AMD Sempron Dual-Core (Llano) / Athlon II Dual-Core (Llano) / A-Series (Llano) / E2-Series (Llano), 32nm");
-   FMS (5,15,  0, 1,  0,     "AMD C-Series (Ontario ON-B0) / E-Series (Zacate ON-B0) / G-Series (Ontario/Zacate ON-B0) / Z-Series (Desna ON-B0), 40nm");
-   FM  (5,15,  0, 1,         "AMD C-Series (Ontario) / E-Series (Zacate) / G-Series (Ontario/Zacat) / Z-Series (Desna), 40nm");
-   FMS (5,15,  0, 2,  0,     "AMD C-Series (Ontario ON-C0) / E-Series (Zacate ON-C0) / G-Series (Ontario/Zacate ON-C0) / Z-Series (Desna ON-C0), 40nm");
-   FM  (5,15,  0, 2,         "AMD C-Series (Ontario) / E-Series (Zacate) / G-Series (Ontario/Zacat) / Z-Series (Desna), 40nm");
-   F   (5,15,                "AMD C-Series / E-Series / G-Series / Z-Series, 40nm");
-   FMSQ(6,15,  0, 1,  2, dO, "AMD Opteron 6200 (Interlagos OR-B2) / Opteron 4200 (Valencia OR-B2) / Opteron 3200 (Zurich OR-B2), 32nm");
-   FMSQ(6,15,  0, 1,  2, df, "AMD FX-Series (Zambezi OR-B2), 32nm");
-   FMS (6,15,  0, 1,  2,     "AMD Opteron 6200 (Interlagos OR-B2) / Opteron 4200 (Valencia OR-B2) / Opteron 3200 (Zurich OR-B2) / AMD FX-Series (Zambezi OR-B2), 32nm");
-   FMQ (6,15,  0, 1,     dO, "AMD Opteron 6200 (Interlagos) / Opteron 4200 (Valencia) / Opteron 3200 (Zurich), 32nm");
-   FM  (6,15,  0, 1,         "AMD Opteron 6200 (Interlagos) / Opteron 4200 (Valencia) / Opteron 3200 (Zurich) / AMD FX-Series (Zambezi), 32nm");
-   FMS (6,15,  0, 2,  0,     "AMD Opteron 6300 (Abu Dhabi OR-C0) / Opteron 4300 (Seoul OR-C0) / Opteron 3300 (Delhi OR-C0), 32nm");
-   FMS (6,15,  1, 0,  1,     "AMD A-Series / AMD R-Series / Athlon Dual-Core / Athlon Quad-Core / Sempron Dual-Core / FirePro (Trinity TN-A1), 32nm");
-   FM  (6,15,  1, 0,         "AMD A-Series / AMD R-Series / Athlon Dual-Core / Athlon Quad-Core / Sempron Dual-Core / FirePro (Trinity), 32nm");
-   FMS (6,15,  1, 3,  1,     "AMD A-Series / AMD R-Series / Athlon Dual-Core / Athlon Quad-Core / Sempron Dual-Core / FirePro (Richland RL-A1), 32nm");
-   FM  (6,15,  1, 3,         "AMD A-Series / AMD R-Series / Athlon Dual-Core / Athlon Quad-Core / Sempron Dual-Core / FirePro (Richland), 32nm");
-   F   (6,15,                "AMD Opteron 6x00 / Opteron 4x00 / Opteron 3x00 / AMD FX-Series / A-Series / AMD R-Series / Athlon Dual-Core / Athlon Quad-Core / Sempron Dual-Core / FirePro, 32nm");
-   FMS (7,15,  0, 0,  1,     "AMD A-Series / E-Series / G-Series / Opteron X1100 Series / Opteron X2100 Series (Steamroller KB-A1), 28nm");
-   FM  (7,15,  0, 0,         "AMD A-Series / E-Series / G-Series / Opteron X1100 Series / Opteron X2100 Series (Steamroller), 28nm");
+   FMSQ(1,15,  0, 2,  1, dO, "AMD Quad-Core Opteron (Barcelona DR-B1) [K10], 65nm");
+   FMS (1,15,  0, 2,  1,     "AMD Quad-Core Opteron (Barcelona DR-B1) [K10], 65nm");
+   FMSQ(1,15,  0, 2,  2, EO, "AMD Embedded Opteron (Barcelona DR-B2) [K10], 65nm");
+   FMSQ(1,15,  0, 2,  2, dO, "AMD Quad-Core Opteron (Barcelona DR-B2) [K10], 65nm");
+   FMSQ(1,15,  0, 2,  2, Tp, "AMD Phenom Triple-Core (Toliman DR-B2) [K10], 65nm");
+   FMSQ(1,15,  0, 2,  2, Qp, "AMD Phenom Quad-Core (Agena DR-B2) [K10], 65nm");
+   FMS (1,15,  0, 2,  2,     "AMD Quad-Core Opteron (Barcelona DR-B2) / Embedded Opteron (Barcelona DR-B2) / Phenom Triple-Core (Toliman DR-B2) / Phenom Quad-Core (Agena DR-B2) [K10], 65nm");
+   FMQ (1,15,  0, 2,     EO, "AMD Embedded Opteron (Barcelona) [K10], 65nm");
+   FMQ (1,15,  0, 2,     dO, "AMD Quad-Core Opteron (Barcelona) [K10], 65nm");
+   FMQ (1,15,  0, 2,     Tp, "AMD Phenom Triple-Core (Toliman) [K10], 65nm");
+   FMQ (1,15,  0, 2,     Qp, "AMD Phenom Quad-Core (Agena) [K10], 65nm");
+   FM  (1,15,  0, 2,         "AMD Opteron (Barcelona) / Phenom Triple-Core (Toliman) / Phenom Quad-Core (Agena) [K10], 65nm");
+   FMSQ(1,15,  0, 2,  3, EO, "AMD Embedded Opteron (Barcelona DR-B3) [K10], 65nm");
+   FMSQ(1,15,  0, 2,  3, dO, "AMD Quad-Core Opteron (Barcelona DR-B3) [K10], 65nm");
+   FMSQ(1,15,  0, 2,  3, Tp, "AMD Phenom Triple-Core (Toliman DR-B3) [K10], 65nm");
+   FMSQ(1,15,  0, 2,  3, Qp, "AMD Phenom Quad-Core (Agena DR-B3) [K10], 65nm");
+   FMSQ(1,15,  0, 2,  3, dA, "AMD Athlon Dual-Core (Kuma DR-B3) [K10], 65nm");
+   FMS (1,15,  0, 2,  3,     "AMD Quad-Core Opteron (Barcelona DR-B3) / Embedded Opteron (Barcelona DR-B2) / Phenom Triple-Core (Toliman DR-B3) / Phenom Quad-Core (Agena DR-B3) / Athlon Dual-Core (Kuma DR-B3) [K10], 65nm");
+   FMS (1,15,  0, 2, 10,     "AMD Quad-Core Opteron (Barcelona DR-BA) [K10], 65nm");
+   FMQ (1,15,  0, 2,     EO, "AMD Embedded Opteron (Barcelona) [K10], 65nm");
+   FMQ (1,15,  0, 2,     dO, "AMD Quad-Core Opteron (Barcelona) [K10], 65nm");
+   FMQ (1,15,  0, 2,     Tp, "AMD Phenom Triple-Core (Toliman) [K10], 65nm");
+   FMQ (1,15,  0, 2,     Qp, "AMD Phenom Quad-Core (Agena) [K10], 65nm");
+   FMQ (1,15,  0, 2,     dA, "AMD Athlon Dual-Core (Kuma) [K10], 65nm");
+   FM  (1,15,  0, 2,         "AMD Quad-Core Opteron (Barcelona) / Phenom Triple-Core (Toliman) / Phenom Quad-Core (Agena) / Athlon Dual-Core (Kuma) [K10], 65nm");
+   FMSQ(1,15,  0, 4,  2, EO, "AMD Embedded Opteron (Shanghai RB-C2) [K10], 45nm");
+   FMSQ(1,15,  0, 4,  2, dO, "AMD Quad-Core Opteron (Shanghai RB-C2) [K10], 45nm");
+   FMSQ(1,15,  0, 4,  2, dR, "AMD Athlon Dual-Core (Propus RB-C2) [K10], 45nm");
+   FMSQ(1,15,  0, 4,  2, dA, "AMD Athlon Dual-Core (Regor RB-C2) [K10], 45nm");
+   FMSQ(1,15,  0, 4,  2, Dp, "AMD Phenom II X2 (Callisto RB-C2) [K10], 45nm");
+   FMSQ(1,15,  0, 4,  2, Tp, "AMD Phenom II X3 (Heka RB-C2) [K10], 45nm");
+   FMSQ(1,15,  0, 4,  2, Qp, "AMD Phenom II X4 (Deneb RB-C2) [K10], 45nm");
+   FMS (1,15,  0, 4,  2,     "AMD Quad-Core Opteron (Shanghai RB-C2) / Embedded Opteron (Shanghai RB-C2) / Athlon Dual-Core (Regor / Propus RB-C2) / Phenom II (Callisto / Heka / Deneb RB-C2) [K10], 45nm");
+   FMSQ(1,15,  0, 4,  3, Dp, "AMD Phenom II X2 (Callisto RB-C3) [K10], 45nm");
+   FMSQ(1,15,  0, 4,  3, Tp, "AMD Phenom II X3 (Heka RB-C3) [K10], 45nm");
+   FMSQ(1,15,  0, 4,  3, Qp, "AMD Phenom II X4 (Deneb RB-C3) [K10], 45nm");
+   FMS (1,15,  0, 4,  3,     "AMD Phenom II (Callisto / Heka / Deneb RB-C3) [K10], 45nm");
+   FMQ (1,15,  0, 4,     EO, "AMD Embedded Opteron (Shanghai) [K10], 45nm");
+   FMQ (1,15,  0, 4,     dO, "AMD Quad-Core Opteron (Shanghai) [K10], 45nm");
+   FMQ (1,15,  0, 4,     dR, "AMD Athlon Dual-Core (Propus) [K10], 45nm");
+   FMQ (1,15,  0, 4,     dA, "AMD Athlon Dual-Core (Regor) [K10], 45nm");
+   FMQ (1,15,  0, 4,     Dp, "AMD Phenom II X2 (Callisto) [K10], 45nm");
+   FMQ (1,15,  0, 4,     Tp, "AMD Phenom II X3 (Heka) [K10], 45nm");
+   FMQ (1,15,  0, 4,     Qp, "AMD Phenom II X4 (Deneb) [K10], 45nm");
+   FM  (1,15,  0, 4,         "AMD Quad-Core Opteron (Shanghai) / Athlon Dual-Core (Regor / Propus) / Phenom II (Callisto / Heka / Deneb) [K10], 45nm");
+   FMSQ(1,15,  0, 5,  2, DA, "AMD Athlon II X2 (Regor BL-C2) [K10], 45nm");
+   FMSQ(1,15,  0, 5,  2, TA, "AMD Athlon II X3 (Rana BL-C2) [K10], 45nm");
+   FMSQ(1,15,  0, 5,  2, QA, "AMD Athlon II X4 (Propus BL-C2) [K10], 45nm");
+   FMS (1,15,  0, 5,  2,     "AMD Athlon II X2 / X3 / X4 (Regor / Rana / Propus BL-C2) [K10], 45nm");
+   FMSQ(1,15,  0, 5,  3, TA, "AMD Athlon II X3 (Rana BL-C3) [K10], 45nm");
+   FMSQ(1,15,  0, 5,  3, QA, "AMD Athlon II X4 (Propus BL-C3) [K10], 45nm");
+   FMSQ(1,15,  0, 5,  3, Tp, "AMD Phenom II Triple-Core (Heka BL-C3) [K10], 45nm");
+   FMSQ(1,15,  0, 5,  3, Qp, "AMD Phenom II Quad-Core (Deneb BL-C3) [K10], 45nm");
+   FMS (1,15,  0, 5,  3,     "AMD Athlon II X3 / X4 (Rana / Propus BL-C3) / Phenom II Triple-Core (Heka BL-C3) / Quad-Core (Deneb BL-C3) [K10], 45nm");
+   FMQ (1,15,  0, 5,     DA, "AMD Athlon II X2 (Regor) [K10], 45nm");
+   FMQ (1,15,  0, 5,     TA, "AMD Athlon II X3 (Rana) [K10], 45nm");
+   FMQ (1,15,  0, 5,     QA, "AMD Athlon II X4 (Propus) [K10], 45nm");
+   FMQ (1,15,  0, 5,     Tp, "AMD Phenom II Triple-Core (Heka) [K10], 45nm");
+   FMQ (1,15,  0, 5,     Qp, "AMD Phenom II Quad-Core (Deneb) [K10], 45nm");
+   FM  (1,15,  0, 5,         "AMD Athlon II X2 / X3 / X4 (Regor / Rana / Propus) / Phenom II Triple-Core (Heka) / Quad-Core (Deneb) [K10], 45nm");
+   FMSQ(1,15,  0, 6,  2, MS, "AMD Sempron Mobile (Sargas DA-C2) [K10], 45nm");
+   FMSQ(1,15,  0, 6,  2, dS, "AMD Sempron II (Sargas DA-C2) [K10], 45nm");
+   FMSQ(1,15,  0, 6,  2, MT, "AMD Turion II Dual-Core Mobile (Caspian DA-C2) [K10], 45nm");
+   FMSQ(1,15,  0, 6,  2, MA, "AMD Athlon II Dual-Core Mobile (Regor DA-C2) [K10], 45nm");
+   FMSQ(1,15,  0, 6,  2, DA, "AMD Athlon II X2 (Regor DA-C2) [K10], 45nm");
+   FMSQ(1,15,  0, 6,  2, dA, "AMD Athlon II (Sargas DA-C2) [K10], 45nm");
+   FMS (1,15,  0, 6,  2,     "AMD Athlon II (Sargas DA-C2) / Athlon II X2 (Regor DA-C2) / Sempron II (Sargas DA-C2) / Athlon II Dual-Core Mobile (Regor DA-C2) / Sempron Mobile (Sargas DA-C2) / Turion II Dual-Core Mobile (Caspian DA-C2) [K10], 45nm");
+   FMSQ(1,15,  0, 6,  3, Ms, "AMD V-Series Mobile (Champlain DA-C3) [K10], 45nm");
+   FMSQ(1,15,  0, 6,  3, DS, "AMD Sempron II X2 (Regor DA-C3) [K10], 45nm");
+   FMSQ(1,15,  0, 6,  3, dS, "AMD Sempron II (Sargas DA-C3) [K10], 45nm");
+   FMSQ(1,15,  0, 6,  3, MT, "AMD Turion II Dual-Core Mobile (Champlain DA-C3) [K10], 45nm");
+   FMSQ(1,15,  0, 6,  3, Mp, "AMD Phenom II Dual-Core Mobile (Champlain DA-C3) [K10], 45nm");
+   FMSQ(1,15,  0, 6,  3, MA, "AMD Athlon II Dual-Core Mobile (Champlain DA-C3) [K10], 45nm");
+   FMSQ(1,15,  0, 6,  3, DA, "AMD Athlon II X2 (Regor DA-C3) [K10], 45nm");
+   FMSQ(1,15,  0, 6,  3, dA, "AMD Athlon II (Sargas DA-C3) [K10], 45nm");
+   FMS (1,15,  0, 6,  3,     "AMD Athlon II (Sargas DA-C3) / Athlon II X2 (Regor DA-C2) / Sempron II (Sargas DA-C2) / Sempron II X2 (Regor DA-C3) / V-Series Mobile (Champlain DA-C3) / Athlon II Dual-Core Mobile (Champlain DA-C3) / Turion II Dual-Core Mobile (Champlain DA-C3) / Phenom II Dual-Core Mobile (Champlain DA-C3) [K10], 45nm");
+   FMQ (1,15,  0, 6,     Ms, "AMD V-Series Mobile (Champlain) [K10], 45nm");
+   FMQ (1,15,  0, 6,     MS, "AMD Sempron Mobile (Sargas) [K10], 45nm");
+   FMQ (1,15,  0, 6,     DS, "AMD Sempron II X2 (Regor) [K10], 45nm");
+   FMQ (1,15,  0, 6,     dS, "AMD Sempron II (Sargas) [K10], 45nm");
+   FMQ (1,15,  0, 6,     MT, "AMD Turion II Dual-Core Mobile (Caspian / Champlain) [K10], 45nm");
+   FMQ (1,15,  0, 6,     Mp, "AMD Phenom II Dual-Core Mobile (Champlain) [K10], 45nm");
+   FMQ (1,15,  0, 6,     MA, "AMD Athlon II Dual-Core Mobile (Regor / Champlain) [K10], 45nm");
+   FMQ (1,15,  0, 6,     DA, "AMD Athlon II X2 (Regor) [K10], 45nm");
+   FMQ (1,15,  0, 6,     dA, "AMD Athlon II (Sargas) [K10], 45nm");
+   FM  (1,15,  0, 6,         "AMD Athlon II (Sargas) / Athlon II X2 (Regor) / Sempron II (Sargas) / Sempron II X2 (Regor) / Sempron Mobile (Sargas) / V-Series Mobile (Champlain) / Athlon II Dual-Core Mobile (Regor / Champlain) / Turion II Dual-Core Mobile (Caspian / Champlain) / Phenom II Dual-Core Mobile (Champlain) [K10], 45nm");
+   FMSQ(1,15,  0, 8,  0, SO, "AMD Six-Core Opteron (Istanbul HY-D0) [K10], 45nm");
+   FMSQ(1,15,  0, 8,  0, dO, "AMD Opteron 4100 (Lisbon HY-D0) [K10], 45nm");
+   FMS (1,15,  0, 8,  0,     "AMD Opteron 4100 (Lisbon HY-D0) / Six-Core Opteron (Istanbul HY-D0) [K10], 45nm");
+   FMS (1,15,  0, 8,  1,     "AMD Opteron 4100 (Lisbon HY-D1) [K10], 45nm");
+   FMQ (1,15,  0, 8,     SO, "AMD Six-Core Opteron (Istanbul) [K10], 45nm");
+   FMQ (1,15,  0, 8,     dO, "AMD Opteron 4100 (Lisbon) [K10], 45nm");
+   FM  (1,15,  0, 8,         "AMD Opteron 4100 (Lisbon) / Six-Core Opteron (Istanbul) [K10], 45nm");
+   FMS (1,15,  0, 9,  1,     "AMD Opteron 6100 (Magny-Cours HY-D1) [K10], 45nm");
+   FM  (1,15,  0, 9,         "AMD Opteron 6100 (Magny-Cours) [K10], 45nm");
+   FMSQ(1,15,  0,10,  0, Qp, "AMD Phenom II X4 (Zosma PH-E0) [K10], 45nm");
+   FMSQ(1,15,  0,10,  0, Sp, "AMD Phenom II X6 (Thuban PH-E0) [K10], 45nm");
+   FMS (1,15,  0,10,  0,     "AMD Phenom II X4 / X6 (Zosma / Thuban PH-E0) [K10], 45nm");
+   FMQ (1,15,  0,10,     Qp, "AMD Phenom II X4 (Zosma) [K10], 45nm");
+   FMQ (1,15,  0,10,     Sp, "AMD Phenom II X6 (Thuban) [K10], 45nm");
+   FM  (1,15,  0,10,         "AMD Phenom II X4 / X6 (Zosma / Thuban) [K10], 45nm");
+   F   (1,15,                "AMD Athlon / Athlon II / Athlon II Xn / Opteron / Opteron 4100 / Opteron 6100 / Embedded Opteron / Phenom / Phenom II / Phenom II Xn / Sempron II / Sempron II Xn / Sempron Mobile / Turion II / V-Series Mobile [K10]");
+   FMSQ(2,15,  0, 3,  1, MT, "AMD Turion X2 Dual-Core Mobile (Lion LG-B1) [Puma 2008], 65nm");
+   FMSQ(2,15,  0, 3,  1, DS, "AMD Sempron X2 Dual-Core (Sable LG-B1) [Puma 2008], 65nm");
+   FMSQ(2,15,  0, 3,  1, dS, "AMD Sempron (Sable LG-B1) [Puma 2008], 65nm");
+   FMSQ(2,15,  0, 3,  1, DA, "AMD Athlon X2 Dual-Core (Lion LG-B1) [Puma 2008], 65nm");
+   FMSQ(2,15,  0, 3,  1, dA, "AMD Athlon (Lion LG-B1) [Puma 2008], 65nm");
+   FMS (2,15,  0, 3,  1,     "AMD Turion X2 Dual-Core Mobile (Lion LG-B1) / Athlon (Lion LG-B1) / Athlon X2 Dual-Core (Lion LG-B1) / Sempron (Sable LG-B1) / Sempron X2 Dual-Core (Sable LG-B1) [Puma 2008], 65nm");
+   FMQ (2,15,  0, 3,     MT, "AMD Turion X2 (Lion) [Puma 2008], 65nm");
+   FMQ (2,15,  0, 3,     DS, "AMD Sempron X2 Dual-Core (Sable) [Puma 2008], 65nm");
+   FMQ (2,15,  0, 3,     dS, "AMD Sempron (Sable) [Puma 2008], 65nm");
+   FMQ (2,15,  0, 3,     DA, "AMD Athlon X2 Dual-Core (Lion) [Puma 2008], 65nm");
+   FMQ (2,15,  0, 3,     dA, "AMD Athlon (Lion) [Puma 2008], 65nm");
+   FM  (2,15,  0, 3,         "AMD Turion X2 (Lion) / Athlon (Lion) / Sempron (Sable) [Puma 2008], 65nm");
+   F   (2,15,                "AMD Turion X2 Mobile / Athlon / Athlon X2 / Sempron / Sempron X2 [Puma 2008], 65nm");
+   FMSQ(3,15,  0, 1,  0, dS, "AMD Sempron Dual-Core (Llano LN-B0) [K10], 32nm");
+   FMSQ(3,15,  0, 1,  0, dA, "AMD Athlon II Dual-Core (Llano LN-B0) [K10], 32nm");
+   FMSQ(3,15,  0, 1,  0, Ms, "AMD A-Series (Llano LN-B0) / E2-Series (Llano LN-B0) [K10], 32nm");
+   FMS (3,15,  0, 1,  0,     "AMD Sempron Dual-Core (Llano LN-B0) / Athlon II Dual-Core (Llano LN-B0) / A-Series (Llano LN-B0) / E2-Series (Llano LN-B0) [K10], 32nm");
+   FMQ (3,15,  0, 1,     dS, "AMD Sempron Dual-Core (Llano) [K10], 32nm");
+   FMQ (3,15,  0, 1,     dA, "AMD Athlon II Dual-Core (Llano) [K10], 32nm");
+   FMQ (3,15,  0, 1,     Ms, "AMD A-Series (Llano) / E2-Series (Llano) [K10], 32nm");
+   FM  (3,15,  0, 1,         "AMD Sempron Dual-Core (Llano) / Athlon II Dual-Core (Llano) / A-Series (Llano) / E2-Series (Llano) [K10], 32nm");
+   FMS (5,15,  0, 1,  0,     "AMD C-Series (Ontario ON-B0) / E-Series (Zacate ON-B0) / G-Series (Ontario/Zacate ON-B0) / Z-Series (Desna ON-B0) [Bobcat], 40nm");
+   FM  (5,15,  0, 1,         "AMD C-Series (Ontario) / E-Series (Zacate) / G-Series (Ontario/Zacat) / Z-Series (Desna) [Bobcat], 40nm");
+   FMS (5,15,  0, 2,  0,     "AMD C-Series (Ontario ON-C0) / E-Series (Zacate ON-C0) / G-Series (Ontario/Zacate ON-C0) / Z-Series (Desna ON-C0) [Bobcat], 40nm");
+   FM  (5,15,  0, 2,         "AMD C-Series (Ontario) / E-Series (Zacate) / G-Series (Ontario/Zacat) / Z-Series (Desna) [Bobcat], 40nm");
+   F   (5,15,                "AMD C-Series / E-Series / G-Series / Z-Series [Bobcat], 40nm");
+   FMSQ(6,15,  0, 1,  2, dO, "AMD Opteron 6200 (Interlagos OR-B2) / Opteron 4200 (Valencia OR-B2) / Opteron 3200 (Zurich OR-B2) [Bulldozer], 32nm");
+   FMSQ(6,15,  0, 1,  2, df, "AMD FX-Series (Zambezi OR-B2) [Bulldozer], 32nm");
+   FMS (6,15,  0, 1,  2,     "AMD Opteron 6200 (Interlagos OR-B2) / Opteron 4200 (Valencia OR-B2) / Opteron 3200 (Zurich OR-B2) / AMD FX-Series (Zambezi OR-B2) [Bulldozer], 32nm");
+   FMQ (6,15,  0, 1,     dO, "AMD Opteron 6200 (Interlagos) / Opteron 4200 (Valencia) / Opteron 3200 (Zurich) [Bulldozer], 32nm");
+   FM  (6,15,  0, 1,         "AMD Opteron 6200 (Interlagos) / Opteron 4200 (Valencia) / Opteron 3200 (Zurich) / AMD FX-Series (Zambezi) [Bulldozer], 32nm");
+   FMSQ(6,15,  0, 2,  0, dO, "AMD Opteron 6300 (Abu Dhabi OR-C0) / Opteron 4300 (Seoul OR-C0) / Opteron 3300 (Delhi OR-C0) [Piledriver], 32nm");
+   FMSQ(6,15,  0, 2,  0, df, "AMD FX-Series (Vishera OR-C0) [Piledriver], 32nm");
+   FMS (6,15,  0, 2,  0,     "AMD Opteron 6300 (Abu Dhabi OR-C0) / Opteron 4300 (Seoul OR-C0) / Opteron 3300 (Delhi OR-C0) / FX-Series (Vishera OR-C0) [Piledriver], 32nm");
+   FMS (6,15,  1, 0,  1,     "AMD A-Series / AMD R-Series / Athlon Dual-Core / Athlon Quad-Core / Sempron Dual-Core / FirePro (Trinity TN-A1) [Piledriver], 32nm");
+   FM  (6,15,  1, 0,         "AMD A-Series / AMD R-Series / Athlon Dual-Core / Athlon Quad-Core / Sempron Dual-Core / FirePro (Trinity) [Piledriver], 32nm");
+   FMS (6,15,  1, 3,  1,     "AMD A-Series / AMD R-Series / Athlon Dual-Core / Athlon Quad-Core / Sempron Dual-Core / FirePro (Richland RL-A1) [Piledriver], 32nm");
+   FM  (6,15,  1, 3,         "AMD A-Series / AMD R-Series / Athlon Dual-Core / Athlon Quad-Core / Sempron Dual-Core / FirePro (Richland) [Piledriver], 32nm");
+   FMS (6,15,  3, 0,  1,     "AMD Elite Performance A-Series / AMD Mobile R-Series / Opteron X1200 / X2200 (Kaveri KV-A1) [Steamroller], 28nm");
+   FM  (6,15,  3, 0,         "AMD Elite Performance A-Series / AMD Mobile R-Series / Opteron X1200 / X2200 (Kaveri) [Steamroller], 28nm");
+   FMS (6,15,  7, 0,  0,     "AMD A-Series / E-Series / G-Series (Stoney Ridge ST-A0) [Excavator], 28nm");
+   FM  (6,15,  7, 0,         "AMD A-Series / E-Series / G-Series (Stoney Ridge) [Excavator], 28nm");
+   F   (6,15,                "AMD Opteron 6x00 / Opteron 4x00 / Opteron 3x00 / AMD FX-Series / A-Series / E-Series / G-Series / R-Series / Opteron X1200 / X2200 / Athlon Dual-Core / Athlon Quad-Core / Sempron Dual-Core / FirePro");
+   FMS (7,15,  0, 0,  1,     "AMD A-Series / E-Series / G-Series / Opteron X1100 Series / Opteron X2100 Series (Kabini KB-A1) [Jaguar], 28nm");
+   FM  (7,15,  0, 0,         "AMD A-Series / E-Series / G-Series / Opteron X1100 Series / Opteron X2100 Series [Jaguar], 28nm");
+   // The AMD docs (53072) omit the CPUID entirely.  But if this sticks to the
+   // recent AMD pattern, these must be (7,15),(3,0).
+   FMS (7,15,  3, 0,  1,     "AMD A-Series / E-Series Series (Mullins ML-A1) [Puma 2014], 28nm");
+   FM  (7,15,  3, 0,         "AMD A-Series / E-Series Series (Mullins) [Puma 2014], 28nm");
    DEFAULT                  ("unknown");
 
    const char*  brand_pre;
@@ -2978,9 +3046,9 @@ print_synth_via(const char*   name,
    FMS(0, 6,  0, 9,  7, "VIA C3 / Eden ESP 7000/8000/10000 (Nehemiah WinChip C5XL core)");
    FM (0, 6,  0, 9,     "VIA C3 / C3-M / Eden-N (Antaur WinChip C5P core)");
    FM (0, 6,  0,10,     "VIA C7 / C7-M (Esther WinChip C5J core)");
-   FM (0, 6,  0,13,     "VIA C7 / C7-M / C7-D (Esther unknown core)");
+   FM (0, 6,  0,13,     "VIA C7 / C7-M / C7-D / Eden (Esther unknown core)");
    FM (0, 6,  0,15,     "VIA Nano (Isaiah)");
-   F  (0, 6,            "VIA C3 / C3-M / C7 / C7-M / Eden ESP 7000/8000/10000 / Nano (unknown model)");
+   F  (0, 6,            "VIA C3 / C3-M / C7 / C7-M / Eden / Eden ESP 7000/8000/10000 / Nano (unknown model)");
    DEFAULT             ("unknown");
    printf("\n");
 }
@@ -3389,7 +3457,7 @@ static void print_mp_synth(const struct mp*  mp)
 static int bits_needed(unsigned long  v)
 {
    int  result;
-#ifdef __x86_64
+#if defined(__x86_64) && !defined(__ILP32__)
    asm("movq %[v],%%rax;"
        "movq $0,%%rcx;"
        "movl $0,%[result];"
@@ -3745,7 +3813,7 @@ static void print_2_meaning(unsigned char  value,
 {
    if (vendor == VENDOR_CYRIX || vendor == VENDOR_VIA) {
       switch (value) {
-      case 0x70: printf("TLB: 4k pages, 4-way, 32 entries");    return;
+      case 0x70: printf("TLB: 4K pages, 4-way, 32 entries");    return;
       case 0x74: printf("Cyrix-specific: ?");                   return;
       case 0x77: printf("Cyrix-specific: ?");                   return;
       case 0x80: printf("L1 cache: 16K, 4-way, 16 byte lines"); return;
@@ -3821,6 +3889,7 @@ static void print_2_meaning(unsigned char  value,
    case 0x60: printf("L1 data cache: 16K, 8-way, 64 byte lines");        break;
    case 0x61: printf("instruction TLB: 4K pages, 48 entries");           break;
    case 0x63: printf("data TLB: 1G pages, 4-way, 4 entries");            break;
+   case 0x64: printf("data TLB: 4K pages, 4-way, 512 entries");          break;
    case 0x66: printf("L1 data cache: 8K, 4-way, 64 byte lines");         break;
    case 0x67: printf("L1 data cache: 16K, 4-way, 64 byte lines");        break;
    case 0x68: printf("L1 data cache: 32K, 4-way, 64 byte lines");        break;
@@ -3871,6 +3940,7 @@ static void print_2_meaning(unsigned char  value,
    case 0xc1: printf("L2 TLB: 4K/2M pages, 8-way, 1024 entries");        break;
    case 0xc2: printf("data TLB: 2M/4M pages, 4-way, 16 entries");        break;
    case 0xc3: printf("L2 TLB: 4K/2M pages, 6-way, 1536 entries");        break;
+   case 0xc4: printf("data TLB: 2M/4M pages, 4-way, 32 entries");        break;
    case 0xca: printf("L2 TLB: 4K pages, 4-way, 512 entries");            break;
    case 0xd0: printf("L3 cache: 512K, 4-way, 64 byte lines");            break;
    case 0xd1: printf("L3 cache: 1M, 4-way, 64 byte lines");              break;
@@ -4035,7 +4105,6 @@ print_6_eax(unsigned int  value)
           { "HWP energy performance preference"       , 10, 10, bools },
           { "HWP package level request"               , 11, 11, bools },
           { "HDC base registers"                      , 13, 13, bools },
-
         };
 
    print_names(value, names, LENGTH(names, named_item),
@@ -4072,9 +4141,11 @@ print_7_ebx(unsigned int  value)
    static named_item  names[]
       = { { "FSGSBASE instructions"                   ,  0,  0, bools },
           { "IA32_TSC_ADJUST MSR supported"           ,  1,  1, bools },
+          { "SGX: Software Guard Extensions supported",  2,  2, bools },
           { "BMI instruction"                         ,  3,  3, bools },
           { "HLE hardware lock elision"               ,  4,  4, bools },
           { "AVX2: advanced vector extensions 2"      ,  5,  5, bools },
+          { "FDP_EXCPTN_ONLY"                         ,  6,  6, bools },
           { "SMEP supervisor mode exec protection"    ,  7,  7, bools },
           { "BMI2 instructions"                       ,  8,  8, bools },
           { "enhanced REP MOVSB/STOSB"                ,  9,  9, bools },
@@ -4085,15 +4156,20 @@ print_7_ebx(unsigned int  value)
           { "intel memory protection extensions"      , 14, 14, bools },
           { "PQE: platform quality of service enforce", 15, 15, bools },
           { "AVX512F: AVX-512 foundation instructions", 16, 16, bools },
+          { "AVX512DQ: double & quadword instructions", 17, 17, bools },
           { "RDSEED instruction"                      , 18, 18, bools },
           { "ADX instructions"                        , 19, 19, bools },
           { "SMAP: supervisor mode access prevention" , 20, 20, bools },
+          { "AVX512IFMA: fused multiply add"          , 21, 21, bools },
           { "CLFLUSHOPT instruction"                  , 23, 23, bools },
+          { "CLWB instruction"                        , 24, 24, bools },
           { "Intel processor trace"                   , 25, 25, bools },
           { "AVX512PF: prefetch instructions"         , 26, 26, bools },
           { "AVX512ER: exponent & reciprocal instrs"  , 27, 27, bools },
           { "AVX512CD: conflict detection instrs"     , 28, 28, bools },
           { "SHA instructions"                        , 29, 29, bools },
+          { "AVX512BW: byte & word instructions"      , 30, 30, bools },
+          { "AVX512VL: vector length"                 , 31, 31, bools },
         };
 
    print_names(value, names, LENGTH(names, named_item),
@@ -4105,10 +4181,26 @@ print_7_ecx(unsigned int  value)
 {
    static named_item  names[]
       = { { "PREFETCHWT1"                             ,  0,  0, bools },
+          { "AVX512VBMI: vector byte manipulation"    ,  1,  1, bools },
+          { "UMIP: user-mode instruction prevention"  ,  2,  2, bools },
           { "PKU protection keys for user-mode"       ,  3,  3, bools },
           { "OSPKE CR4.PKE and RDPKRU/WRPKRU"         ,  4,  4, bools },
+          { "BNDLDX/BNDSTX MAWAU value in 64-bit mode", 17, 21, NIL_IMAGES },
+          { "RDPID: read processor D supported"       , 22, 22, bools },
+          { "SGX_LC: SGX launch config supported"     , 30, 30, bools },
         };
 
+   print_names(value, names, LENGTH(names, named_item),
+               /* max_len => */ 40);
+}
+
+static void
+print_7_edx(unsigned int  value)
+{
+   static named_item  names[]
+      = { { "AVX512_4VNNIW: neural network instrs"    ,  2,  2, bools },
+          { "AVX512_4FMAPS: multiply acc single prec" ,  3,  3, bools },
+      };
    print_names(value, names, LENGTH(names, named_item),
                /* max_len => */ 40);
 }
@@ -4199,20 +4291,26 @@ print_b_ecx(unsigned int  value)
 static void
 print_d_0_eax(unsigned int  value)
 {
-   static ccstring  all_or_none[] = { "false",
-                                      "unexpected: 001b",
-                                      "unexpected: 010b",
-                                      "unexpected: 011b",
-                                      "unexpected: 100b",
-                                      "unexpected: 101b",
-                                      "unexpected: 110b",
-                                      "true" };
+   /*
+   ** State component bitmaps in general are described in 325462: Intel 64 and
+   ** IA-32 Architectures Software Developer's Manual Combined Volumes: 1, 2A,
+   ** 2B, 2C, 3A, 3B, and 3C, section 13.1: XSAVE-Supported Features and
+   ** State-Component Bitmaps.  This leaf describes which of the bits are
+   ** actually supported by the hardware, and is described better in 1.32:
+   ** Enumeration of CPU Support for XSAVE Instructions and XSAVE-Supported
+   ** Features.
+   */
    static named_item  names[]
-      = { { "   XCR0 field supported: x87 state"      ,  0,  0, bools },
-          { "   XCR0 field supported: SSE state"      ,  1,  1, bools },
-          { "   XCR0 field supported: AVX state"      ,  2,  2, bools },
-          { "   XCR0 field supported: AVX-512 state"  ,  5,  7, all_or_none },
-          { "   XCR0 field supported: PKRU state"     ,  9,  9, bools },
+      = { { "   XCR0 supported: x87 state"            ,  0,  0, bools },
+          { "   XCR0 supported: SSE state"            ,  1,  1, bools },
+          { "   XCR0 supported: AVX state"            ,  2,  2, bools },
+          { "   XCR0 supported: MPX BNDREGS"          ,  3,  3, bools },
+          { "   XCR0 supported: MPX BNDCSR"           ,  4,  4, bools },
+          { "   XCR0 supported: AVX-512 opmask"       ,  5,  5, bools },
+          { "   XCR0 supported: AVX-512 ZMM_Hi256"    ,  6,  6, bools },
+          { "   XCR0 supported: AVX-512 Hi16_ZMM"     ,  7,  7, bools },
+          { "   IA32_XSS supported: PT state"         ,  8,  8, bools },
+          { "   XCR0 supported: PKRU state"           ,  9,  9, bools },
         };
 
    print_names(value, names, LENGTH(names, named_item),
@@ -4236,8 +4334,8 @@ print_d_1_eax(unsigned int  value)
 static void
 print_d_n_ecx(unsigned int  value)
 {
-   static ccstring  which[] = { "XCR0",
-                                "IA32_XSS" };
+   static ccstring  which[] = { "XCR0 (user state)",
+                                "IA32_XSS (supervisor state)" };
 
    static named_item  names[]
       = { { "supported in IA32_XSS or XCR0"           ,  0,  0, which },
@@ -4255,19 +4353,19 @@ print_d_n(const unsigned int  words[WORD_NUM],
    /*
    ** The XSAVE areas are explained in 325462: Intel 64 and IA-32 Architectures
    ** Software Developer's Manual Combined Volumes: 1, 2A, 2B, 2C, 3A, 3B, and
-   ** 3C, section 13.1: XSAVE-Supported Features and State-Component Bitmaps
-   ** and again in 13.3: Enabling the XSAVE Feature Set and XSAVE-Enabled
-   ** Features.
+   ** 3C, section 13.1: XSAVE-Supported Features and State-Component Bitmaps.
+   ** These align with the supported feature names[] in print_d_0_eax() for
+   ** values > 1.
    */
    static ccstring features[64] = { /*  0 => */ "internal error",
                                     /*  1 => */ "internal error",
                                     /*  2 => */ "AVX/YMM",
-                                    /*  3 => */ "unknown",
-                                    /*  4 => */ "unknown",
+                                    /*  3 => */ "MPX BNDREGS",
+                                    /*  4 => */ "MPX BNDCSR",
                                     /*  5 => */ "AVX-512 opmask",
                                     /*  6 => */ "AVX-512 ZMM_Hi256",
-                                    /*  7 => */ "AVX-512 Hi16-ZMM",
-                                    /*  8 => */ "unknown",
+                                    /*  7 => */ "AVX-512 Hi16_ZMM",
+                                    /*  8 => */ "PT",
                                     /*  9 => */ "PKRU",
                                     /* 10 => */ "unknown",
                                     /* 11 => */ "unknown",
@@ -4342,10 +4440,23 @@ print_d_n(const unsigned int  words[WORD_NUM],
 }
 
 static void
+print_f_0_edx(unsigned int  value)
+{
+   static named_item  names[]
+      = { { "supports L3 cache QoS monitoring"        ,  0,  0, bools },
+        };
+
+   print_names(value, names, LENGTH(names, named_item),
+               /* max_len => */ 0);
+}
+
+static void
 print_f_1_edx(unsigned int  value)
 {
    static named_item  names[]
       = { { "supports L3 occupancy monitoring"        ,  0,  0, bools },
+          { "supports L3 total bandwidth monitoring"  ,  1,  1, bools },
+          { "supports L3 local bandwidth monitoring"  ,  2,  2, bools },
         };
 
    print_names(value, names, LENGTH(names, named_item),
@@ -4353,10 +4464,11 @@ print_f_1_edx(unsigned int  value)
 }
 
 static void
-print_10_1_eax(unsigned int  value)
+print_10_0_ebx(unsigned int  value)
 {
    static named_item  names[]
-      = { { "length of capacity bit mask"             ,  0,  4, NIL_IMAGES },
+      = { { "L3 cache allocation technology supported",  1,  1, bools },
+          { "L2 cache allocation technology supported",  2,  2, bools },
         };
 
    print_names(value, names, LENGTH(names, named_item),
@@ -4364,7 +4476,18 @@ print_10_1_eax(unsigned int  value)
 }
 
 static void
-print_10_1_ecx(unsigned int  value)
+print_10_n_eax(unsigned int  value)
+{
+   static named_item  names[]
+      = { { "length of capacity bit mask - 1"         ,  0,  4, NIL_IMAGES },
+        };
+
+   print_names(value, names, LENGTH(names, named_item),
+               /* max_len => */ 0);
+}
+
+static void
+print_10_n_ecx(unsigned int  value)
 {
    static named_item  names[]
       = { { "infrequent updates of COS"               ,  1,  1, bools },
@@ -4376,7 +4499,7 @@ print_10_1_ecx(unsigned int  value)
 }
 
 static void
-print_10_1_edx(unsigned int  value)
+print_10_n_edx(unsigned int  value)
 {
    static named_item  names[]
       = { { "highest COS number supported"            ,  0, 15, NIL_IMAGES },
@@ -4387,6 +4510,60 @@ print_10_1_edx(unsigned int  value)
 }
 
 static void
+print_12_0_eax(unsigned int  value)
+{
+   static named_item  names[]
+      = { { "SGX1 supported"                          ,  0,  0, bools },
+          { "SGX2 supported"                          ,  1,  1, bools },
+        };
+
+   print_names(value, names, LENGTH(names, named_item),
+               /* max_len => */ 38);
+}
+
+static void
+print_12_0_ebx(unsigned int  value)
+{
+   /*
+   ** MISCSELECT is described in Table 38-4: Bit Vector Layout of MISCSELECT
+   ** Field of Extended Information.
+   */
+   static named_item  names[]
+      = { { "MISCSELECT.EXINFO supported: #PF & #GP"  ,  0,  0, bools },
+        };
+
+   print_names(value, names, LENGTH(names, named_item),
+               /* max_len => */ 38);
+}
+
+static void
+print_12_0_edx(unsigned int  value)
+{
+   static named_item  names[]
+      = { { "MaxEnclaveSize_Not64 (log2)"             ,  0,  7, NIL_IMAGES },
+          { "MaxEnclaveSize_64 (log2)"                ,  8, 15, NIL_IMAGES },
+        };
+
+   print_names(value, names, LENGTH(names, named_item),
+               /* max_len => */ 38);
+}
+
+static void
+print_12_n_1_ecx(unsigned int  value)
+{
+   static ccstring props[16] = { /* 0 => */ "enumerated as 0",
+                                 /* 1 => */ "confidentiality & integrity"
+                                            " protection" };
+
+   static named_item  names[]
+      = { { "section property"                        ,  0,  3, props },
+        };
+
+   print_names(value, names, LENGTH(names, named_item),
+               /* max_len => */ 23);
+}
+
+static void
 print_14_0_ebx(unsigned int  value)
 {
    static named_item  names[]
@@ -4394,6 +4571,8 @@ print_14_0_ebx(unsigned int  value)
           { "configurable PSB & cycle-accurate"       ,  1,  1, bools },
           { "IP & TraceStop filtering; PT preserve"   ,  2,  2, bools },
           { "MTC timing packet; suppress COFI-based"  ,  3,  3, bools },
+          { "PTWRITE support"                         ,  4,  4, bools },
+          { "power event trace support"               ,  5,  5, bools },
         };
 
    print_names(value, names, LENGTH(names, named_item),
@@ -4466,6 +4645,21 @@ print_16_ecx(unsigned int  value)
 {
    static named_item  names[]
       = { { "Bus (Reference) Frequency (MHz)"         ,  0, 15, NIL_IMAGES },
+        };
+
+   print_names(value, names, LENGTH(names, named_item),
+               /* max_len => */ 0);
+}
+
+static void
+print_17_0_ebx(unsigned int  value)
+{
+   static ccstring schemes[] = { /* 0 => */ "assigned by intel",
+                                 /* 1 => */ "industry standard" };
+
+   static named_item  names[]
+      = { { "vendor id"                               ,  0, 15, NIL_IMAGES },
+          { "vendor scheme"                           , 16, 16, schemes },
         };
 
    print_names(value, names, LENGTH(names, named_item),
@@ -5097,7 +5291,7 @@ print_80000005_ecx(unsigned int  value)
       = { { "line size (bytes)"                       ,  0,  7, NIL_IMAGES },
           { "lines per tag"                           ,  8, 15, NIL_IMAGES },
           { "associativity"                           , 16, 23, NIL_IMAGES },
-          { "size (Kb)"                               , 24, 31, NIL_IMAGES },
+          { "size (KB)"                               , 24, 31, NIL_IMAGES },
         };
 
    printf("   L1 data cache information (0x80000005/ecx):\n");
@@ -5112,7 +5306,7 @@ print_80000005_edx(unsigned int  value)
       = { { "line size (bytes)"                       ,  0,  7, NIL_IMAGES },
           { "lines per tag"                           ,  8, 15, NIL_IMAGES },
           { "associativity"                           , 16, 23, NIL_IMAGES },
-          { "size (Kb)"                               , 24, 31, NIL_IMAGES },
+          { "size (KB)"                               , 24, 31, NIL_IMAGES },
         };
 
    printf("   L1 instruction cache information (0x80000005/edx):\n");
@@ -5176,7 +5370,7 @@ print_80000006_ecx(unsigned int   value,
       = { { "line size (bytes)"                       ,  0,  7, NIL_IMAGES },
           { "lines per tag"                           ,  8, 11, NIL_IMAGES },
           { "associativity"                           , 12, 15, l2_assoc },
-          { "size (Kb)"                               , 16, 31, NIL_IMAGES },
+          { "size (KB)"                               , 16, 31, NIL_IMAGES },
         };
 
    printf("   L2 unified cache information (0x80000006/ecx):\n");
@@ -5197,7 +5391,7 @@ print_80000006_edx(unsigned int   value)
       = { { "line size (bytes)"                       ,  0,  7, NIL_IMAGES },
           { "lines per tag"                           ,  8, 11, NIL_IMAGES },
           { "associativity"                           , 12, 15, l2_assoc },
-          { "size (in 512Kb units)"                   , 18, 31, NIL_IMAGES },
+          { "size (in 512KB units)"                   , 18, 31, NIL_IMAGES },
         };
 
    printf("   L3 cache information (0x80000006/edx):\n");
@@ -5682,7 +5876,15 @@ usage(void)
    printf("   -f FILE, --file=FILE  read raw hex information (-r output) from"
                                     " FILE instead\n");
    printf("                         of from executions of the cpuid"
-                                    " instruction\n");
+                                    " instruction.\n");
+   printf("                         If FILE is '-', read from stdin.\n");
+   printf("   -l V,    --leaf=V     display information for the single specified"
+                                    " leaf.\n");
+   printf("                         If -s/--subleaf is not specified, 0 is"
+                                    " assumed.\n");
+   printf("   -s V,    --subleaf=V  display information for the single specified"
+                                    " subleaf.\n");
+   printf("                         It requires -l/--leaf.\n");
    printf("   -h, -H,  --help       display this help information\n");
    printf("   -i,      --inst       use the CPUID instruction: The information"
                                     " it provides\n");
@@ -5908,6 +6110,7 @@ print_reg (unsigned int        reg,
       if (try == 0) {
          print_7_ebx(words[WORD_EBX]);
          print_7_ecx(words[WORD_ECX]);
+         print_7_edx(words[WORD_EDX]);
       } else {
          /* Reserved: DO NOTHING */
       }
@@ -5935,13 +6138,14 @@ print_reg (unsigned int        reg,
          printf("   XSAVE features (0xd/0):\n");
          printf("      XCR0 lower 32 bits valid bit field mask = 0x%08x\n",
                 words[WORD_EAX]);
+         printf("      XCR0 upper 32 bits valid bit field mask = 0x%08x\n",
+                words[WORD_EDX]);
          print_d_0_eax(words[WORD_EAX]);
+         // No bits current are defined in d_0_edx
          printf("      bytes required by fields in XCR0        = 0x%08x (%u)\n",
                 words[WORD_EBX], words[WORD_EBX]);
          printf("      bytes required by XSAVE/XRSTOR area     = 0x%08x (%u)\n",
                 words[WORD_ECX], words[WORD_ECX]);
-         printf("      XCR0 upper 32 bits valid bit field mask = 0x%08x\n",
-                words[WORD_EDX]);
       } else if (try == 1) {
          printf("   XSAVE features (0xd/1):\n");
          print_d_1_eax(words[WORD_EAX]);
@@ -5965,6 +6169,7 @@ print_reg (unsigned int        reg,
       if (try == 0) {
          printf("   Quality of Service Monitoring Resource Type (0xf/0):\n");
          printf("      Maximum range of RMID = %u\n", words[WORD_EBX]);
+         print_f_0_edx(words[WORD_EDX]);
       } else if (try == 1) {
          printf("   L3 Cache Quality of Service Monitoring (0xf/1):\n");
          printf("      Conversion factor from IA32_QM_CTR to bytes = %u\n",
@@ -5977,17 +6182,47 @@ print_reg (unsigned int        reg,
       }
    } else if (reg == 0x10) {
       if (try == 0) {
-         printf("   Quality of Service Enforcement Resource Type (0x10/0):\n");
-         printf("      Maximum range of RMID = %u\n", words[WORD_EBX]);
-      } else if (try == 1) {
-         printf("   L3 Cache Quality of Service Enforcement (0x10/1):\n");
-         print_10_1_eax(words[WORD_EAX]);
+         printf("   Resource Director Technology allocation (0x10/0):\n");
+         print_10_0_ebx(words[WORD_EBX]);
+      } else if (try == 1 || try == 2) {
+         if (try == 1) {
+            printf("   L3 Cache Allocation Technology (0x10/1):\n");
+         } else if (try == 2) {
+            printf("   L2 Cache Allocation Technology (0x10/2):\n");
+         }
+         print_10_n_eax(words[WORD_EAX]);
          printf("      Bit-granular map of isolation/contention    = 0x%08x\n",
                 words[WORD_EBX]);
-         print_10_1_ecx(words[WORD_EAX]);
-         print_10_1_edx(words[WORD_EAX]);
+         print_10_n_ecx(words[WORD_EAX]);
+         print_10_n_edx(words[WORD_EAX]);
       } else {
          print_reg_raw(reg, try, words);
+      }
+   } else if (reg == 0x12) {
+      if (try == 0) {
+         printf("   SGX capability (0x12/0):\n");
+         print_12_0_eax(words[WORD_EAX]);
+         print_12_0_ebx(words[WORD_EBX]);
+         print_12_0_edx(words[WORD_EDX]);
+      } else if (try == 1) {
+         printf("   SGX attributes (0x12/1):\n");
+         printf("      ECREATE SECS.ATTRIBUTES valid bit mask ="
+                " 0x%08x%08x%08x%08x\n",
+                words[WORD_EDX],
+                words[WORD_ECX],
+                words[WORD_EBX],
+                words[WORD_EAX]);
+      } else {
+         if ((words[WORD_EAX] & 0xf) == 1) {
+            printf("   SGX EPC enumeration (0x12/n):\n");
+            printf("      section physical address = 0x%08x%08x\n",
+                   words[WORD_EBX], words[WORD_EAX] & 0xfffff000);
+            printf("      section size             = 0x%08x%08x\n",
+                   words[WORD_EDX], words[WORD_ECX] & 0xfffff000);
+            print_12_n_1_ecx(words[WORD_ECX]);
+         } else {
+            print_reg_raw(reg, try, words);
+         }
       }
    } else if (reg == 0x14) {
       if (try == 0) {
@@ -6004,11 +6239,30 @@ print_reg (unsigned int        reg,
       printf("   Time Stamp Counter/Core Crystal Clock Information (0x15):\n");
       printf("      TSC/clock ratio = %u/%u\n",
              words[WORD_EBX], words[WORD_EAX]);
+      printf("      nominal core crystal clock = %u Hz\n", words[WORD_ECX]);
    } else if (reg == 0x16) {
       printf("   Processor Frequency Information (0x16):\n");
       print_16_eax(words[WORD_EAX]);
       print_16_ebx(words[WORD_EBX]);
       print_16_ecx(words[WORD_ECX]);
+   } else if (reg == 0x17) {
+      if (try == 0) {
+         printf("   system-on-chip vendor attribute (0x17/0):\n");
+         print_17_0_ebx(words[WORD_EBX]);
+         printf("      project id  = 0x%08x (%u)\n",
+                words[WORD_ECX], words[WORD_ECX]);
+         printf("      stepping id = 0x%08x (%u)\n",
+                words[WORD_EDX], words[WORD_EDX]);
+      } else if (try == 1) {
+         memcpy(&stash->soc_brand[0], words, sizeof(unsigned int)*WORD_NUM);
+      } else if (try == 2) {
+         memcpy(&stash->soc_brand[16], words, sizeof(unsigned int)*WORD_NUM);
+      } else if (try == 3) {
+         memcpy(&stash->soc_brand[32], words, sizeof(unsigned int)*WORD_NUM);
+         printf("      SoC brand   = \"%s\"\n", stash->soc_brand);
+      } else {
+         print_reg_raw(reg, try, words);
+      }
    } else if (reg == 0x40000000) {
       // max already set to words[WORD_EAX]
       printf("   hypervisor_id = \"%-4.4s%-4.4s%-4.4s\"\n",
@@ -6230,7 +6484,7 @@ real_setup(unsigned int  cpu,
 #ifdef USE_KERNEL_SCHED_SETAFFINITY
          /*
          ** The interface for sched_setaffinity and cpusets has changed many
-         ** times.  Insulate this tool from it all that by calling the system
+         ** times.  Insulate this tool from all that by calling the system
          ** service directly.
          */
          unsigned int  mask[MAX_CPUS / (sizeof(unsigned int)*8)];
@@ -6352,6 +6606,13 @@ static int real_get (int           cpuid_fd,
                      boolean       quiet)
 {
    if (cpuid_fd == USE_INSTRUCTION) {
+#ifdef USE_CPUID_COUNT
+      __cpuid_count(reg, ecx,
+                    words[WORD_EAX],
+                    words[WORD_EBX],
+                    words[WORD_ECX],
+                    words[WORD_EDX]);
+#else
       asm("cpuid"
           : "=a" (words[WORD_EAX]),
             "=b" (words[WORD_EBX]),
@@ -6359,6 +6620,7 @@ static int real_get (int           cpuid_fd,
             "=d" (words[WORD_EDX])
           : "a" (reg), 
             "c" (ecx));
+#endif
    } else {
       off64_t  result;
       off64_t  offset = ((off64_t)ecx << 32) + reg;
@@ -6449,6 +6711,37 @@ print_header (unsigned int  reg,
 }
 
 static void
+do_real_one(unsigned int  reg,
+            unsigned int  try,
+            boolean       one_cpu,
+            boolean       inst,
+            boolean       raw,
+            boolean       debug)
+{
+   unsigned int  cpu;
+
+   for (cpu = 0;; cpu++) {
+      int            cpuid_fd   = -1;
+      code_stash_t   stash      = NIL_STASH;
+
+      if (one_cpu && cpu > 0) break;
+
+      cpuid_fd = real_setup(cpu, one_cpu, inst);
+      if (cpuid_fd == -1) break;
+
+      if (inst && one_cpu) {
+         printf("CPU:\n");
+      } else {
+         printf("CPU %u:\n", cpu);
+      }
+
+      unsigned int  words[WORD_NUM];
+      real_get(cpuid_fd, reg, words, try, FALSE);
+      print_reg(reg, words, raw, try, &stash);
+   }
+}
+
+static void
 do_real(boolean  one_cpu,
         boolean  inst,
         boolean  raw,
@@ -6533,7 +6826,7 @@ do_real(boolean  one_cpu,
             ** Intel:
             **    For ecx values 2..63, the leaf is present if the corresponding
             **    bit is present in the bit catenation of 0xd/0/edx + 0xd/0/eax,
-            **    or the bit catenation of 0xd/1/edx + 0xd/1/eax.
+            **    or the bit catenation of 0xd/1/edx + 0xd/1/ecx.
             ** AMD:
             **    Only 4 ecx values are defined and it's gappy.  It's unclear
             **    what the upper bound of any loop would be, so it seems
@@ -6546,7 +6839,7 @@ do_real(boolean  one_cpu,
             real_get(cpuid_fd, reg, words, 1, FALSE);
             print_reg(reg, words, raw, 1, &stash);
             unsigned long long  valid_xss
-               = ((unsigned long long)words[WORD_EDX] << 32) | words[WORD_EAX];
+               = ((unsigned long long)words[WORD_EDX] << 32) | words[WORD_ECX];
             unsigned long long  valid_tries = valid_xcr0 | valid_xss;
             unsigned int  try;
             for (try = 2; try < 63; try++) {
@@ -6567,9 +6860,23 @@ do_real(boolean  one_cpu,
             unsigned int  mask = words[WORD_EBX];
             print_header(reg, 0, raw);
             print_reg(reg, words, raw, 0, &stash);
-            if (BIT_EXTRACT_LE(mask, 1, 2)) {
-               real_get(cpuid_fd, reg, words, 1, FALSE);
-               print_reg(reg, words, raw, 1, &stash);
+            unsigned int  try;
+            for (try = 1; try < 32; try++) {
+               if (mask & (1 << try)) {
+                  real_get(cpuid_fd, reg, words, try, FALSE);
+                  print_reg(reg, words, raw, try, &stash);
+               }
+            }
+         } else if (reg == 0x12) {
+            unsigned int  mask = words[WORD_EAX];
+            print_header(reg, 0, raw);
+            print_reg(reg, words, raw, 0, &stash);
+            unsigned int  try;
+            for (try = 1; try < 33; try++) {
+               if (mask & (1 << (try-1))) {
+                  real_get(cpuid_fd, reg, words, try, FALSE);
+                  print_reg(reg, words, raw, try, &stash);
+               }
             }
          } else if (reg == 0x14) {
             unsigned int  try = 0;
@@ -6584,20 +6891,17 @@ do_real(boolean  one_cpu,
                if (try > max_tries) break;
                real_get(cpuid_fd, reg, words, try, FALSE);
             }
-         } else if (reg == 0x40000003 && stash.hypervisor == HYPERVISOR_XEN) {
+         } else if (reg == 0x17) {
             unsigned int  try = 0;
-            for (; try <= 2; try++) {
+            unsigned int  max_tries;
+            for (;;) {
                print_header(reg, try, raw);
                print_reg(reg, words, raw, try, &stash);
+               if (try == 0) {
+                  max_tries = words[WORD_EAX];
+               }
                try++;
-               real_get(cpuid_fd, reg, words, try, FALSE);
-            }
-         } else if (reg == 0x8000001d) {
-            unsigned int  try = 0;
-            while ((words[WORD_EAX] & 0x1f) != 0) {
-               print_header(reg, try, raw);
-               print_reg(reg, words, raw, try, &stash);
-               try++;
+               if (try > max_tries) break;
                real_get(cpuid_fd, reg, words, try, FALSE);
             }
          } else {
@@ -6618,7 +6922,17 @@ do_real(boolean  one_cpu,
                max = words[WORD_EAX];
             }
 
-            print_reg(reg, words, raw, 0, &stash);
+            if (reg == 0x40000003 && stash.hypervisor == HYPERVISOR_XEN) {
+               unsigned int  try = 0;
+               for (; try <= 2; try++) {
+                  print_header(reg, try, raw);
+                  print_reg(reg, words, raw, try, &stash);
+                  try++;
+                  real_get(cpuid_fd, reg, words, try, FALSE);
+               }
+            } else {
+               print_reg(reg, words, raw, 0, &stash);
+            }
 
             if (reg == 0x40000000
                 && stash.hypervisor == HYPERVISOR_KVM
@@ -6647,7 +6961,17 @@ do_real(boolean  one_cpu,
             max = words[WORD_EAX];
          }
 
-         print_reg(reg, words, raw, 0, &stash);
+         if (reg == 0x8000001d) {
+            unsigned int  try = 0;
+            while ((words[WORD_EAX] & 0x1f) != 0) {
+               print_header(reg, try, raw);
+               print_reg(reg, words, raw, try, &stash);
+               try++;
+               real_get(cpuid_fd, reg, words, try, FALSE);
+            }
+         } else {
+            print_reg(reg, words, raw, 0, &stash);
+         }
       }
 
       max = 0x80860000;
@@ -6713,18 +7037,22 @@ do_file(ccstring  filename,
    unsigned int  try8000001d = -1;
    code_stash_t  stash       = NIL_STASH;
 
-   FILE*  file = fopen(filename, "r");
-   if (file == NULL) {
-      fprintf(stderr,
-              "%s: unable to open %s; errno = %d (%s)\n",
-              program, filename, errno, strerror(errno));
-      exit(1);
+   FILE*  file;
+   if (strcmp(filename, "-") == 0) {
+      file = stdin;
+   } else {
+      file = fopen(filename, "r");
+      if (file == NULL) {
+         fprintf(stderr,
+                 "%s: unable to open %s; errno = %d (%s)\n",
+                 program, filename, errno, strerror(errno));
+         exit(1);
+      }
    }
 
    while (!feof(file)) {
       char          buffer[88];
       char*         ptr;
-      unsigned int  len;
       int           status;
       unsigned int  reg;
       unsigned int  try;
@@ -6741,8 +7069,6 @@ do_file(ccstring  filename,
          }
          exit(1);
       }
-
-      len = strlen(buffer);
 
       status = sscanf(ptr, "CPU %u:\r", &cpu);
       if (status == 1 || strcmp(ptr, "CPU:\n") == SAME) {
@@ -6816,14 +7142,16 @@ do_file(ccstring  filename,
       do_final(raw, debug, &stash);
    }
 
-   fclose(file);
+   if (file != stdin) {
+      fclose(file);
+   }
 }
 
 int
 main(int     argc,
      string  argv[])
 {
-   static ccstring             shortopts  = "+hH1ikrdf:v";
+   static ccstring             shortopts  = "+hH1ikrdf:vl:s:";
    static const struct option  longopts[] = {
       { "help",    no_argument,       NULL, 'h'  },
       { "one-cpu", no_argument,       NULL, '1'  },
@@ -6833,16 +7161,22 @@ main(int     argc,
       { "debug",   no_argument,       NULL, 'd'  },
       { "file",    required_argument, NULL, 'f'  },
       { "version", no_argument,       NULL, 'v'  },
+      { "leaf",    required_argument, NULL, 'l'  },
+      { "subleaf", required_argument, NULL, 's'  },
       { NULL,      no_argument,       NULL, '\0' }
    };
 
-   boolean  opt_one_cpu  = FALSE;
-   boolean  opt_inst     = FALSE;
-   boolean  opt_kernel   = FALSE;
-   boolean  opt_raw      = FALSE;
-   boolean  opt_debug    = FALSE;
-   cstring  opt_filename = NULL;
-   boolean  opt_version  = FALSE;
+   boolean        opt_one_cpu     = FALSE;
+   boolean        opt_inst        = FALSE;
+   boolean        opt_kernel      = FALSE;
+   boolean        opt_raw         = FALSE;
+   boolean        opt_debug       = FALSE;
+   cstring        opt_filename    = NULL;
+   boolean        opt_version     = FALSE;
+   boolean        opt_leaf        = FALSE;
+   unsigned long  opt_leaf_val    = 0;
+   boolean        opt_subleaf     = FALSE;
+   unsigned long  opt_subleaf_val = 0;
 
    program = strrchr(argv[0], '/');
    if (program == NULL) {
@@ -6885,6 +7219,34 @@ main(int     argc,
       case 'v':
          opt_version = TRUE;
          break;
+      case 'l':
+         opt_leaf = TRUE;
+         {
+            errno = 0;
+            char* endptr = NULL;
+            opt_leaf_val = strtoul(optarg, &endptr, 0);
+            if (errno != 0) {
+               fprintf(stderr,
+                       "%s: argument to -l/--leaf not understood: %s\n",
+                       program, argv[optind-1]);
+               exit(1);
+            }
+         }
+         break;
+      case 's':
+         opt_subleaf = TRUE;
+         {
+            errno = 0;
+            char* endptr = NULL;
+            opt_subleaf_val = strtoul(optarg, &endptr, 0);
+            if (errno != 0) {
+               fprintf(stderr,
+                       "%s: argument to -s/--subleaf not understood: %s\n",
+                       program, argv[optind-1]);
+               exit(1);
+            }
+         }
+         break;
       case '?':
       default:
          if (optopt == '\0') {
@@ -6920,6 +7282,20 @@ main(int     argc,
       exit(1);
    }
 
+   if (opt_filename != NULL && opt_leaf) {
+      fprintf(stderr,
+              "%s: -f/--file and -l/--leaf are incompatible options\n",
+              program);
+      exit(1);
+   }
+
+   if (opt_subleaf && !opt_leaf) {
+      fprintf(stderr,
+              "%s: -s/--subleaf requires that -l/--leaf also be specified\n",
+              program);
+      exit(1);
+   }
+
    // Default to -i.  So use inst unless -k is specified.
    boolean  inst = !opt_kernel;
 
@@ -6928,6 +7304,9 @@ main(int     argc,
    } else {
       if (opt_filename != NULL) {
          do_file(opt_filename, opt_raw, opt_debug);
+      } else if (opt_leaf) {
+         do_real_one(opt_leaf_val, opt_subleaf_val,
+                     opt_one_cpu, inst, opt_raw, opt_debug);
       } else {
          do_real(opt_one_cpu, inst, opt_raw, opt_debug);
       }

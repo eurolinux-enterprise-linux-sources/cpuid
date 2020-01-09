@@ -1,13 +1,13 @@
-diff -crB cpuid-20151017-orig/cpuid.c cpuid-20151017-new/cpuid.c
-*** cpuid-20151017-orig/cpuid.c	2015-10-17 21:59:03.000000000 +0200
---- cpuid-20151017-new/cpuid.c	2016-06-01 18:31:23.531378179 +0200
+diff -crB cpuid-20170122-orig/cpuid.c cpuid-20170122-new/cpuid.c
+*** cpuid-20170122-orig/cpuid.c	2017-01-24 09:13:20.995887582 -0500
+--- cpuid-20170122-new/cpuid.c	2017-01-24 09:13:54.610751021 -0500
 ***************
-*** 6926,6931 ****
---- 6926,6932 ----
+*** 7302,7307 ****
+--- 7302,7308 ----
      if (opt_version) {
         printf("cpuid version %s\n", XSTR(VERSION));
      } else {
 +       fprintf(stderr, "Disclaimer: %s may not support decoding of all cpuid registers.\n", program);
         if (opt_filename != NULL) {
            do_file(opt_filename, opt_raw, opt_debug);
-        } else {
+        } else if (opt_leaf) {
